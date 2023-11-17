@@ -1,0 +1,379 @@
+openapi: 3.1.0
+
+info:
+  title: katana
+  description: Specification for the Katana API
+  version: 1.0.0
+  contact:
+    url: https://github.com/katana-project
+    email: root@katana-project.org
+
+paths:
+  /repos:
+    get:
+      summary: Lists repositories.
+      description: Lists all repositories currently known to the server.
+      tags:
+        - repositories
+      operationId: getRepos
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Repository'
+  /repos/{id}:
+    get:
+      summary: Gets a repository.
+      description: Gets a repository by its ID.
+      tags:
+        - repositories
+      operationId: getRepoById
+      parameters:
+        - in: path
+          name: id
+          description: The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Repository'
+        '400':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /repos/{id}/media:
+    get:
+      summary: Lists a repository's media.
+      description: Gets a repository by its ID and lists its media.
+      tags:
+        - repositories
+        - media
+      operationId: getRepoMedia
+      parameters:
+        - in: path
+          name: id
+          description: The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Media'
+        '400':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /repos/{repoId}/media/{mediaId}:
+    get:
+      summary: Gets a repository's media.
+      description: Gets media by its ID in a repository.
+      tags:
+        - repositories
+        - media
+      operationId: getRepoMediaById
+      parameters:
+        - in: path
+          name: repoId
+          description: The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+        - in: path
+          name: mediaId
+          description: The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '400':
+          description: Repository or media not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /repos/{repoId}/media/{mediaId}/stream/raw:
+    get:
+      summary: Gets a raw HTTP media stream.
+      description: Gets media by its ID in a repository and returns an HTTP media stream of the original file.
+      tags:
+        - repositories
+        - media
+      operationId: getRepoMediaRawStream
+      parameters:
+        - in: path
+          name: repoId
+          description: The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+        - in: path
+          name: mediaId
+          description: The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+      responses:
+        '200':
+          description: Successful response
+          headers:
+            Content-Type:
+              schema:
+                type: string
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            schema:
+              type: string
+              format: binary
+        '400':
+          description: Repository or media not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+tags:
+  - name: repositories
+    description: Operations with repositories and their items.
+  - name: media
+    description: Operations with media.
+
+components:
+  schemas:
+    Error:
+      type: object
+      required:
+        - description
+      properties:
+        description:
+          type: string
+          description: The error description.
+    Repository:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          pattern: ^[a-z0-9-_]+$
+        name:
+          type: string
+          description: The repository name.
+    MetadataType:
+      type: string
+      enum:
+        - unknown
+        - movie
+        - series
+        - episode
+    Metadata:
+      type: object
+      required:
+        - type
+        - title
+        - original_title
+        - overview
+        - release_date
+        - vote_rating
+        - images
+      properties:
+        type:
+          $ref: '#/components/schemas/MetadataType'
+          description: The metadata type.
+        title:
+          type: string
+          description: The media title.
+        original_title:
+          type: string
+          description: The media title as it was initially released (original language).
+          nullable: true
+        overview:
+          type: string
+          description: The media plot overview.
+          nullable: true
+        release_date:
+          type: string
+          format: date-time
+          description: The media initial release date and time.
+        vote_rating:
+          type: number
+          description: The media like/dislike ratio.
+          minimum: 0
+          maximum: 1
+        images:
+          type: array
+          description: The promotional images of the media.
+          items:
+            $ref: '#/components/schemas/Image'
+    Image:
+      type: object
+      required:
+        - path
+        - remote
+        - description
+      properties:
+        path:
+          type: string
+          description: The image URL, a remote HTTP resource or raw data (data:image url).
+        remote:
+          type: boolean
+          description: Whether the image path is a remote URL.
+        description:
+          type: string
+          description: The image description.
+          nullable: true
+    CastMember:
+      type: object
+      required:
+        - name
+        - role
+        # - image
+      properties:
+        name:
+          type: string
+          description: The cast member name.
+        role:
+          type: string
+          description: The cast character name or the member's position.
+        image:
+          $ref: '#/components/schemas/Image'
+          description: The image of the cast member.
+          # nullable: true - doesn't work with ogen, non-required for now
+    MovieMetadata:
+      allOf:
+        - $ref: '#/components/schemas/Metadata'
+        - type: object
+          required:
+            - genres
+            - cast
+            - languages
+            - countries
+          properties:
+            genres:
+              type: array
+              description: The media's genres.
+              items:
+                type: string
+            cast:
+              type: array
+              description: The people casted in the media.
+              items:
+                $ref: '#/components/schemas/CastMember'
+            languages:
+              type: array
+              description: The languages originally spoken in the media.
+              items:
+                type: string
+            countries:
+              type: array
+              description: The countries that took part in producing the media.
+              items:
+                type: string
+    SeriesMetadata:  # same as MovieMetadata in katana code
+      allOf:
+        - $ref: '#/components/schemas/Metadata'
+        - type: object
+          required:
+            - genres
+            - cast
+            - languages
+            - countries
+          properties:
+            genres:
+              type: array
+              description: The media's genres.
+              items:
+                type: string
+            cast:
+              type: array
+              description: The people casted in the media.
+              items:
+                $ref: '#/components/schemas/CastMember'
+            languages:
+              type: array
+              description: The languages originally spoken in the media.
+              items:
+                type: string
+            countries:
+              type: array
+              description: The countries that took part in producing the media.
+              items:
+                type: string
+    EpisodeMetadata:
+      allOf:
+        - $ref: '#/components/schemas/Metadata'
+        - type: object
+          required:
+            - series
+            - season
+            - episode
+          properties:
+            series:
+              $ref: '#/components/schemas/SeriesMetadata'
+              description: The parent series of the episode.
+            season:
+              type: integer
+              description: The season containing the episode.
+              min: 0
+            episode:
+              type: integer
+              description: The episode number.
+              min: 0
+    Media:
+      type: object
+      required:
+        - id
+        - meta
+      properties:
+        id:
+          type: string
+          description: The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          pattern: ^[a-z0-9-_]+$
+        meta:
+          oneOf:
+            - $ref: '#/components/schemas/Metadata'
+            - $ref: '#/components/schemas/MovieMetadata'
+            - $ref: '#/components/schemas/SeriesMetadata'
+            - $ref: '#/components/schemas/EpisodeMetadata'
+          discriminator:
+            propertyName: type
+            mapping:
+              unknown: '#/components/schemas/Metadata'
+              movie: '#/components/schemas/MovieMetadata'
+              series: '#/components/schemas/SeriesMetadata'
+              episode: '#/components/schemas/EpisodeMetadata'
+          nullable: true

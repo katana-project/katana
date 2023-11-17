@@ -1,0 +1,9 @@
+[http]
+host = ":8000"
+
+[repos.test]
+watch = true
+path = "./test-repo"
+index_path = "./test-repo/.katana/index.json"
+
+[repos.test.sources.analysis.literal]

@@ -1,0 +1,8 @@
+generator:
+  features:
+    enable:
+      - debug/example_tests
+    disable:
+      - paths/client
+      - webhooks/client
+      - ogen/otel
