@@ -2,7 +2,7 @@ package media
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/repo/media/meta"
 	"regexp"
 	"strings"
@@ -164,7 +164,7 @@ func (bm *BasicMedia) UnmarshalJSON(bytes []byte) error {
 
 		bm.meta = &metaData
 	default:
-		return fmt.Errorf("unexpected metadata type %d", metaBase.Type)
+		return errors.Errorf("unexpected metadata type %d", metaBase.Type)
 	}
 
 	return nil

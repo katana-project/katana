@@ -172,19 +172,36 @@ tags:
 
 components:
   schemas:
+    ErrorType:
+      type: string
+      enum:
+        - not_found
+        - missing_capability
+        - internal_error
     Error:
       type: object
       required:
+        - type
         - description
       properties:
+        type:
+          $ref: '#/components/schemas/ErrorType'
         description:
           type: string
           description: The error description.
+    RepositoryCapability:
+      type: string
+      enum:
+        - watch
+        - index
+        - remux
+        - transcode
     Repository:
       type: object
       required:
         - id
         - name
+        - capabilities
       properties:
         id:
           type: string
@@ -193,6 +210,11 @@ components:
         name:
           type: string
           description: The repository name.
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepositoryCapability'
+          description: The repository's capabilities.
     MetadataType:
       type: string
       enum:

@@ -42,8 +42,11 @@ func (mm *movieMetadata) VoteRating() float64 {
 	return mm.data.GetVoteAverage().Or(10)
 }
 func (mm *movieMetadata) Genres() []string {
-	var genreNames []string
-	for _, genre := range mm.data.GetGenres() {
+	var (
+		genres     = mm.data.GetGenres()
+		genreNames = make([]string, 0, len(genres))
+	)
+	for _, genre := range genres {
 		if name, ok := genre.GetName().Get(); ok {
 			genreNames = append(genreNames, name)
 		}
@@ -71,8 +74,11 @@ func (mm *movieMetadata) Cast() []meta.CastMember {
 	return castMembers
 }
 func (mm *movieMetadata) Languages() []language.Tag {
-	var languageTags []language.Tag
-	for _, lang := range mm.data.GetSpokenLanguages() {
+	var (
+		languages    = mm.data.GetSpokenLanguages()
+		languageTags = make([]language.Tag, 0, len(languages))
+	)
+	for _, lang := range languages {
 		if code, ok := lang.GetIso6391().Get(); ok {
 			if tag, err := language.Parse(code); err == nil {
 				languageTags = append(languageTags, tag)
@@ -83,8 +89,11 @@ func (mm *movieMetadata) Languages() []language.Tag {
 	return languageTags
 }
 func (mm *movieMetadata) Countries() []language.Region {
-	var regions []language.Region
-	for _, country := range mm.data.GetProductionCountries() {
+	var (
+		countries = mm.data.GetProductionCountries()
+		regions   = make([]language.Region, 0, len(countries))
+	)
+	for _, country := range countries {
 		if code, ok := country.GetIso31661().Get(); ok {
 			if region, err := language.ParseRegion(code); err == nil {
 				regions = append(regions, region)

@@ -10,18 +10,12 @@ import (
 	"github.com/katana-project/katana/config"
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media/meta"
-	"github.com/katana-project/katana/repo/media/meta/tmdb"
 	"github.com/katana-project/katana/server/api"
-	tmdbClient "github.com/katana-project/tmdb"
-	"github.com/mitchellh/mapstructure"
 	"github.com/ogen-go/ogen/ogenerrors"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
-	"golang.org/x/text/language"
 	"net/http"
 )
-
-var tmdbApiUrl = "https://api.themoviedb.org/"
 
 // Server is a REST server for the Katana API.
 type Server struct {
@@ -115,6 +109,9 @@ func DefaultErrorHandler(_ context.Context, w http.ResponseWriter, _ *http.Reque
 
 	e := jx.GetEncoder()
 	e.ObjStart()
+	e.FieldStart("type")
+	v, _ := api.ErrorTypeInternalError.MarshalText()
+	e.ByteStr(v)
 	e.FieldStart("description")
 	e.StrEscape(err.Error())
 	e.ObjEnd()
@@ -166,87 +163,9 @@ func (s *Server) Repos() []repo.Repository {
 	return maps.Values(s.repos)
 }
 
-func (s *Server) newError(description string) *api.Error {
+func (s *Server) newError(type_ api.ErrorType, description string) *api.Error {
 	return &api.Error{
+		Type:        type_,
 		Description: description,
 	}
-}
-
-type tmdbSourceOptions struct {
-	Key  string `mapstructure:"key"`
-	URL  string `mapstructure:"url"`
-	Lang string `mapstructure:"lang"`
-}
-
-type tmdbSecuritySource struct {
-	key tmdbClient.Sec0
-}
-
-func (tss *tmdbSecuritySource) Sec0(_ context.Context, _ string) (tmdbClient.Sec0, error) {
-	return tss.key, nil
-}
-
-// NewConfiguredMetaSource creates a metadata source from configuration.
-func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.Source, error) {
-	switch name {
-	case "literal":
-		return meta.NewLiteralSource(), nil
-	case "tmdb":
-		var parsedOpts tmdbSourceOptions
-		if err := mapstructure.WeakDecode(options, &parsedOpts); err != nil {
-			return nil, errors.Wrapf(err, "failed to decode metadata source %s options", name)
-		}
-
-		url := parsedOpts.URL
-		if url == "" { // zero value
-			url = tmdbApiUrl
-		}
-
-		sec0 := &tmdbSecuritySource{key: tmdbClient.Sec0{Token: parsedOpts.Key}}
-		client, err := tmdbClient.NewClient(url, sec0)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create tmdb api client")
-		}
-
-		langStr := parsedOpts.Lang
-		if langStr == "" { // zero value
-			langStr = "en-US"
-		}
-
-		lang, err := language.Parse(langStr)
-		if err != nil {
-			return nil, errors.Errorf("failed to parse tmdb api language preference")
-		}
-
-		return tmdb.NewSource(client, lang, true), nil
-	case "analysis":
-		metaSources := make([]meta.Source, 0, len(options))
-		for sourceName, sourceOptions0 := range options {
-			sourceOptions, ok := sourceOptions0.(map[string]interface{})
-			if !ok {
-				return nil, errors.Errorf("failed to parse metadata sub-source %s options", sourceName)
-			}
-
-			ms, err := NewConfiguredMetaSource(sourceName, sourceOptions)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to configure metadata sub-source %s", sourceName)
-			}
-
-			metaSources = append(metaSources, ms)
-		}
-
-		var (
-			sourcesLen = len(metaSources)
-			metaSource = meta.NewDummySource()
-		)
-		if sourcesLen > 1 {
-			metaSource = meta.NewCompositeSource(metaSources...)
-		} else if sourcesLen == 1 {
-			metaSource = metaSources[0]
-		}
-
-		return meta.NewFileAnalysisSource(metaSource), nil
-	}
-
-	return nil, errors.Errorf("unknown metadata source %s", name)
 }

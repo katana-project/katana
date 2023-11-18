@@ -85,9 +85,19 @@ func (s *EpisodeMetadata) SetFake() {
 func (s *Error) SetFake() {
 	{
 		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
 			s.Description = "string"
 		}
 	}
+}
+
+// SetFake set fake values.
+func (s *ErrorType) SetFake() {
+	*s = ErrorTypeNotFound
 }
 
 // SetFake set fake values.
@@ -310,6 +320,23 @@ func (s *Repository) SetFake() {
 			s.Name = "string"
 		}
 	}
+	{
+		{
+			s.Capabilities = nil
+			for i := 0; i < 0; i++ {
+				var elem RepositoryCapability
+				{
+					elem.SetFake()
+				}
+				s.Capabilities = append(s.Capabilities, elem)
+			}
+		}
+	}
+}
+
+// SetFake set fake values.
+func (s *RepositoryCapability) SetFake() {
+	*s = RepositoryCapabilityWatch
 }
 
 // SetFake set fake values.

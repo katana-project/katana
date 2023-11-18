@@ -164,13 +164,24 @@ func (s *EpisodeMetadata) SetEpisode(val int) {
 
 // Ref: #/components/schemas/Error
 type Error struct {
+	Type ErrorType `json:"type"`
 	// The error description.
 	Description string `json:"description"`
+}
+
+// GetType returns the value of Type.
+func (s *Error) GetType() ErrorType {
+	return s.Type
 }
 
 // GetDescription returns the value of Description.
 func (s *Error) GetDescription() string {
 	return s.Description
+}
+
+// SetType sets the value of Type.
+func (s *Error) SetType(val ErrorType) {
+	s.Type = val
 }
 
 // SetDescription sets the value of Description.
@@ -182,6 +193,55 @@ func (*Error) getRepoByIdRes()           {}
 func (*Error) getRepoMediaByIdRes()      {}
 func (*Error) getRepoMediaRawStreamRes() {}
 func (*Error) getRepoMediaRes()          {}
+
+// Ref: #/components/schemas/ErrorType
+type ErrorType string
+
+const (
+	ErrorTypeNotFound          ErrorType = "not_found"
+	ErrorTypeMissingCapability ErrorType = "missing_capability"
+	ErrorTypeInternalError     ErrorType = "internal_error"
+)
+
+// AllValues returns all ErrorType values.
+func (ErrorType) AllValues() []ErrorType {
+	return []ErrorType{
+		ErrorTypeNotFound,
+		ErrorTypeMissingCapability,
+		ErrorTypeInternalError,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ErrorType) MarshalText() ([]byte, error) {
+	switch s {
+	case ErrorTypeNotFound:
+		return []byte(s), nil
+	case ErrorTypeMissingCapability:
+		return []byte(s), nil
+	case ErrorTypeInternalError:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ErrorType) UnmarshalText(data []byte) error {
+	switch ErrorType(data) {
+	case ErrorTypeNotFound:
+		*s = ErrorTypeNotFound
+		return nil
+	case ErrorTypeMissingCapability:
+		*s = ErrorTypeMissingCapability
+		return nil
+	case ErrorTypeInternalError:
+		*s = ErrorTypeInternalError
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
 
 type GetRepoMediaOKApplicationJSON []Media
 
@@ -869,6 +929,8 @@ type Repository struct {
 	ID string `json:"id"`
 	// The repository name.
 	Name string `json:"name"`
+	// The repository's capabilities.
+	Capabilities []RepositoryCapability `json:"capabilities"`
 }
 
 // GetID returns the value of ID.
@@ -881,6 +943,11 @@ func (s *Repository) GetName() string {
 	return s.Name
 }
 
+// GetCapabilities returns the value of Capabilities.
+func (s *Repository) GetCapabilities() []RepositoryCapability {
+	return s.Capabilities
+}
+
 // SetID sets the value of ID.
 func (s *Repository) SetID(val string) {
 	s.ID = val
@@ -891,7 +958,68 @@ func (s *Repository) SetName(val string) {
 	s.Name = val
 }
 
+// SetCapabilities sets the value of Capabilities.
+func (s *Repository) SetCapabilities(val []RepositoryCapability) {
+	s.Capabilities = val
+}
+
 func (*Repository) getRepoByIdRes() {}
+
+// Ref: #/components/schemas/RepositoryCapability
+type RepositoryCapability string
+
+const (
+	RepositoryCapabilityWatch     RepositoryCapability = "watch"
+	RepositoryCapabilityIndex     RepositoryCapability = "index"
+	RepositoryCapabilityRemux     RepositoryCapability = "remux"
+	RepositoryCapabilityTranscode RepositoryCapability = "transcode"
+)
+
+// AllValues returns all RepositoryCapability values.
+func (RepositoryCapability) AllValues() []RepositoryCapability {
+	return []RepositoryCapability{
+		RepositoryCapabilityWatch,
+		RepositoryCapabilityIndex,
+		RepositoryCapabilityRemux,
+		RepositoryCapabilityTranscode,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s RepositoryCapability) MarshalText() ([]byte, error) {
+	switch s {
+	case RepositoryCapabilityWatch:
+		return []byte(s), nil
+	case RepositoryCapabilityIndex:
+		return []byte(s), nil
+	case RepositoryCapabilityRemux:
+		return []byte(s), nil
+	case RepositoryCapabilityTranscode:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *RepositoryCapability) UnmarshalText(data []byte) error {
+	switch RepositoryCapability(data) {
+	case RepositoryCapabilityWatch:
+		*s = RepositoryCapabilityWatch
+		return nil
+	case RepositoryCapabilityIndex:
+		*s = RepositoryCapabilityIndex
+		return nil
+	case RepositoryCapabilityRemux:
+		*s = RepositoryCapabilityRemux
+		return nil
+	case RepositoryCapabilityTranscode:
+		*s = RepositoryCapabilityTranscode
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
 
 // Merged schema.
 // Ref: #/components/schemas/SeriesMetadata

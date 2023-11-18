@@ -47,6 +47,18 @@ func TestError_EncodeDecode(t *testing.T) {
 	var typ2 Error
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestErrorType_EncodeDecode(t *testing.T) {
+	var typ ErrorType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ErrorType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestGetRepoMediaOKApplicationJSON_EncodeDecode(t *testing.T) {
 	var typ GetRepoMediaOKApplicationJSON
 	typ.SetFake()
@@ -129,6 +141,18 @@ func TestRepository_EncodeDecode(t *testing.T) {
 	require.True(t, std.Valid(data), "Encoded: %s", data)
 
 	var typ2 Repository
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
+func TestRepositoryCapability_EncodeDecode(t *testing.T) {
+	var typ RepositoryCapability
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 RepositoryCapability
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
 func TestSeriesMetadata_EncodeDecode(t *testing.T) {

@@ -64,6 +64,42 @@ func (s *EpisodeMetadata) Validate() error {
 	return nil
 }
 
+func (s *Error) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Type.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "type",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s ErrorType) Validate() error {
+	switch s {
+	case "not_found":
+		return nil
+	case "missing_capability":
+		return nil
+	case "internal_error":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s GetRepoMediaOKApplicationJSON) Validate() error {
 	alias := ([]Media)(s)
 	if alias == nil {
@@ -335,10 +371,53 @@ func (s *Repository) Validate() error {
 			Error: err,
 		})
 	}
+	if err := func() error {
+		if s.Capabilities == nil {
+			return errors.New("nil is invalid value")
+		}
+		var failures []validate.FieldError
+		for i, elem := range s.Capabilities {
+			if err := func() error {
+				if err := elem.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "capabilities",
+			Error: err,
+		})
+	}
 	if len(failures) > 0 {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s RepositoryCapability) Validate() error {
+	switch s {
+	case "watch":
+		return nil
+	case "index":
+		return nil
+	case "remux":
+		return nil
+	case "transcode":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s *SeriesMetadata) Validate() error {

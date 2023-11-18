@@ -41,7 +41,7 @@ func (s *Server) GetRepoById(_ context.Context, params api.GetRepoByIdParams) (a
 		return &r0, nil
 	}
 
-	return s.newError("repository not found"), nil
+	return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
 }
 
 // GetRepoMedia implements getRepoMedia operation.
@@ -52,7 +52,7 @@ func (s *Server) GetRepoById(_ context.Context, params api.GetRepoByIdParams) (a
 func (s *Server) GetRepoMedia(_ context.Context, params api.GetRepoMediaParams) (api.GetRepoMediaRes, error) {
 	r, ok := s.repos[params.ID]
 	if !ok {
-		return s.newError("repository not found"), nil
+		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
 	}
 
 	var (
@@ -75,12 +75,12 @@ func (s *Server) GetRepoMedia(_ context.Context, params api.GetRepoMediaParams) 
 func (s *Server) GetRepoMediaById(_ context.Context, params api.GetRepoMediaByIdParams) (api.GetRepoMediaByIdRes, error) {
 	r, ok := s.repos[params.RepoId]
 	if !ok {
-		return s.newError("repository not found"), nil
+		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
 	}
 
 	m := r.Get(params.MediaId)
 	if m == nil {
-		return s.newError("media not found"), nil
+		return s.newError(api.ErrorTypeNotFound, "media not found"), nil
 	}
 
 	m0 := s.makeMedia(m)
@@ -95,12 +95,12 @@ func (s *Server) GetRepoMediaById(_ context.Context, params api.GetRepoMediaById
 func (s *Server) GetRepoMediaRawStream(ctx context.Context, params api.GetRepoMediaRawStreamParams) (api.GetRepoMediaRawStreamRes, error) {
 	rp, ok := s.repos[params.RepoId]
 	if !ok {
-		return s.newError("repository not found"), nil
+		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
 	}
 
 	m := rp.Get(params.MediaId)
 	if m == nil {
-		return s.newError("media not found"), nil
+		return s.newError(api.ErrorTypeNotFound, "media not found"), nil
 	}
 
 	// takeover with http.ServeFile
@@ -118,9 +118,28 @@ func (s *Server) GetRepoMediaRawStream(ctx context.Context, params api.GetRepoMe
 
 func (s *Server) makeRepository(r repo.Repository) api.Repository {
 	return api.Repository{
-		ID:   r.ID(),
-		Name: r.Name(),
+		ID:           r.ID(),
+		Name:         r.Name(),
+		Capabilities: s.makeCapabilities(r.Capabilities()),
 	}
+}
+
+func (s *Server) makeCapabilities(c repo.Capability) []api.RepositoryCapability {
+	var caps []api.RepositoryCapability
+	if c.Has(repo.CapabilityWatch) {
+		caps = append(caps, api.RepositoryCapabilityWatch)
+	}
+	if c.Has(repo.CapabilityIndex) {
+		caps = append(caps, api.RepositoryCapabilityIndex)
+	}
+	if c.Has(repo.CapabilityRemux) {
+		caps = append(caps, api.RepositoryCapabilityRemux)
+	}
+	if c.Has(repo.CapabilityTranscode) {
+		caps = append(caps, api.RepositoryCapabilityTranscode)
+	}
+
+	return caps
 }
 
 func (s *Server) makeMedia(m media.Media) api.Media {

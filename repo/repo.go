@@ -28,6 +28,27 @@ var (
 	commonDelimiterReplacer = strings.NewReplacer(" ", "-", ".", "-")
 )
 
+// Capability is a collection of option flags (integers ORed together).
+type Capability int
+
+const (
+	// CapabilityWatch is a flag of a repository that is able to watch for filesystem changes.
+	CapabilityWatch Capability = 1 << iota
+	// CapabilityIndex is a flag of a repository that is able to persist its contents.
+	CapabilityIndex
+	// CapabilityRemux is a flag of a repository that is able to remux media.
+	// A repository with this flag can be safely type asserted to be MuxingRepository.
+	CapabilityRemux
+	// CapabilityTranscode is a flag of a repository that is able to transcode media.
+	// A repository with this flag can be safely type asserted to be MuxingRepository.
+	CapabilityTranscode
+)
+
+// Has checks whether a Capability can be addressed from this one.
+func (rc Capability) Has(flag Capability) bool {
+	return (rc & flag) != 0
+}
+
 // Repository is a media repository.
 type Repository interface {
 	// ID returns the repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
@@ -36,6 +57,8 @@ type Repository interface {
 	Name() string
 	// Path returns the path to the root directory of this repository, absolute.
 	Path() string
+	// Capabilities returns the capabilities of this repository.
+	Capabilities() Capability
 	// Scan tries to recursively discover missing media from the repository root directory.
 	Scan() error
 	// Get tries to get media by its ID in this repository, returns nil if not found.
@@ -59,6 +82,11 @@ type Repository interface {
 	Close() error
 }
 
+// MuxingRepository is a repository capable of remuxing and transcoding operations.
+type MuxingRepository interface {
+	Repository
+}
+
 // ValidID checks whether the supplied string is a valid repository ID.
 func ValidID(s string) bool {
 	return idPattern.MatchString(s)
@@ -73,15 +101,16 @@ func SanitizeID(s string) string {
 }
 
 type crudRepository struct {
-	id   string
-	name string
-	path string
+	id         string
+	name       string
+	path       string
+	metaSource meta.Source
+	logger     *zap.Logger
+	mu         sync.RWMutex
+
 	// these two should be kept in sync - use addItem and removeItem
 	itemsById   map[string]media.Media
 	itemsByPath map[string]media.Media
-	metaSource  meta.Source
-	logger      *zap.Logger
-	mu          sync.RWMutex
 }
 
 func NewRepository(id, name, path string, metaSource meta.Source, logger *zap.Logger) (Repository, error) {
@@ -122,6 +151,10 @@ func (cr *crudRepository) Name() string {
 
 func (cr *crudRepository) Path() string {
 	return cr.path
+}
+
+func (cr *crudRepository) Capabilities() Capability {
+	return 0
 }
 
 func (cr *crudRepository) addItem(id, path string, m media.Media) {
@@ -439,6 +472,10 @@ func NewWatchedRepository(repo Repository, logger *zap.Logger) (Repository, erro
 	return wr, nil
 }
 
+func (wr *watchedRepository) Capabilities() Capability {
+	return wr.Repository.Capabilities() | CapabilityWatch
+}
+
 func (wr *watchedRepository) handleFsEvents() {
 	var (
 		waitFor = 100 * time.Millisecond
@@ -605,6 +642,10 @@ func NewIndexedRepository(repo Repository, path string, logger *zap.Logger) (Rep
 	}
 
 	return ir, nil
+}
+
+func (ir *indexedRepository) Capabilities() Capability {
+	return ir.Repository.Capabilities() | CapabilityIndex
 }
 
 func (ir *indexedRepository) load() error {

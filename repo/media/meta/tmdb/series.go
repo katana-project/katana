@@ -67,8 +67,11 @@ func (sm *seriesMetadata) Cast() []meta.CastMember {
 	return castMembers
 }
 func (sm *seriesMetadata) Languages() []language.Tag {
-	var languageTags []language.Tag
-	for _, lang := range sm.data.GetSpokenLanguages() {
+	var (
+		languages    = sm.data.GetSpokenLanguages()
+		languageTags = make([]language.Tag, 0, len(languages))
+	)
+	for _, lang := range languages {
 		if code, ok := lang.GetIso6391().Get(); ok {
 			if tag, err := language.Parse(code); err == nil {
 				languageTags = append(languageTags, tag)
@@ -79,8 +82,11 @@ func (sm *seriesMetadata) Languages() []language.Tag {
 	return languageTags
 }
 func (sm *seriesMetadata) Countries() []language.Region {
-	var regions []language.Region
-	for _, country := range sm.data.GetProductionCountries() {
+	var (
+		countries = sm.data.GetProductionCountries()
+		regions   = make([]language.Region, 0, len(countries))
+	)
+	for _, country := range countries {
 		if code, ok := country.GetIso31661().Get(); ok {
 			if region, err := language.ParseRegion(code); err == nil {
 				regions = append(regions, region)
