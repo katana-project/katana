@@ -301,12 +301,19 @@ func (*GetRepoMediaRawStreamOKHeaders) getRepoMediaRawStreamRes() {}
 
 // Ref: #/components/schemas/Image
 type Image struct {
+	// The image type.
+	Type ImageType `json:"type"`
 	// The image URL, a remote HTTP resource or raw data (data:image url).
 	Path string `json:"path"`
 	// Whether the image path is a remote URL.
 	Remote bool `json:"remote"`
 	// The image description.
 	Description NilString `json:"description"`
+}
+
+// GetType returns the value of Type.
+func (s *Image) GetType() ImageType {
+	return s.Type
 }
 
 // GetPath returns the value of Path.
@@ -324,6 +331,11 @@ func (s *Image) GetDescription() NilString {
 	return s.Description
 }
 
+// SetType sets the value of Type.
+func (s *Image) SetType(val ImageType) {
+	s.Type = val
+}
+
 // SetPath sets the value of Path.
 func (s *Image) SetPath(val string) {
 	s.Path = val
@@ -337,6 +349,69 @@ func (s *Image) SetRemote(val bool) {
 // SetDescription sets the value of Description.
 func (s *Image) SetDescription(val NilString) {
 	s.Description = val
+}
+
+// Ref: #/components/schemas/ImageType
+type ImageType string
+
+const (
+	ImageTypeUnknown  ImageType = "unknown"
+	ImageTypeStill    ImageType = "still"
+	ImageTypeBackdrop ImageType = "backdrop"
+	ImageTypePoster   ImageType = "poster"
+	ImageTypeAvatar   ImageType = "avatar"
+)
+
+// AllValues returns all ImageType values.
+func (ImageType) AllValues() []ImageType {
+	return []ImageType{
+		ImageTypeUnknown,
+		ImageTypeStill,
+		ImageTypeBackdrop,
+		ImageTypePoster,
+		ImageTypeAvatar,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ImageType) MarshalText() ([]byte, error) {
+	switch s {
+	case ImageTypeUnknown:
+		return []byte(s), nil
+	case ImageTypeStill:
+		return []byte(s), nil
+	case ImageTypeBackdrop:
+		return []byte(s), nil
+	case ImageTypePoster:
+		return []byte(s), nil
+	case ImageTypeAvatar:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ImageType) UnmarshalText(data []byte) error {
+	switch ImageType(data) {
+	case ImageTypeUnknown:
+		*s = ImageTypeUnknown
+		return nil
+	case ImageTypeStill:
+		*s = ImageTypeStill
+		return nil
+	case ImageTypeBackdrop:
+		*s = ImageTypeBackdrop
+		return nil
+	case ImageTypePoster:
+		*s = ImageTypePoster
+		return nil
+	case ImageTypeAvatar:
+		*s = ImageTypeAvatar
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // Ref: #/components/schemas/Media

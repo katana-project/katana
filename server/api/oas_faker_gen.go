@@ -120,6 +120,11 @@ func (s *GetRepoMediaOKApplicationJSON) SetFake() {
 func (s *Image) SetFake() {
 	{
 		{
+			s.Type.SetFake()
+		}
+	}
+	{
+		{
 			s.Path = "string"
 		}
 	}
@@ -133,6 +138,11 @@ func (s *Image) SetFake() {
 			s.Description.SetFake()
 		}
 	}
+}
+
+// SetFake set fake values.
+func (s *ImageType) SetFake() {
+	*s = ImageTypeUnknown
 }
 
 // SetFake set fake values.

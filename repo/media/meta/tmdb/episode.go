@@ -7,9 +7,10 @@ import (
 )
 
 type episodeMetadata struct {
-	*seriesMetadata
+	meta.MovieOrSeriesMetadata
 
-	data *tmdb.TvEpisodeDetailsOK
+	data        *tmdb.TvEpisodeDetailsOK
+	imageConfig *tmdb.ConfigurationDetailsOKImages
 }
 
 func (em *episodeMetadata) Type() meta.Type {
@@ -44,6 +45,7 @@ func (em *episodeMetadata) Images() []meta.Image {
 	var images []meta.Image
 	if stillPath, ok := em.data.GetStillPath().Get(); ok {
 		images = append(images, &image{
+			type_:       meta.ImageTypeStill,
 			path:        stillPath,
 			description: "Still",
 			config:      em.imageConfig,
@@ -53,7 +55,7 @@ func (em *episodeMetadata) Images() []meta.Image {
 	return images
 }
 func (em *episodeMetadata) Series() meta.MovieOrSeriesMetadata {
-	return em.seriesMetadata
+	return em.MovieOrSeriesMetadata
 }
 func (em *episodeMetadata) Season() int {
 	return em.data.GetSeasonNumber().Or(-1)

@@ -2,6 +2,7 @@ package tmdb
 
 import (
 	"context"
+	"github.com/erni27/imcache"
 	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/tmdb"
@@ -12,14 +13,22 @@ import (
 )
 
 type source struct {
-	client  tmdb.Invoker
-	lang    string
-	credits bool
+	client tmdb.Invoker
+	lang   string
+	exp    imcache.Expiration
+
+	config           *tmdb.ConfigurationDetailsOK // TODO: expire?
+	movieSeriesCache imcache.Cache[int, meta.MovieOrSeriesMetadata]
+	episodeCache     imcache.Cache[episodeKey, meta.EpisodeMetadata]
+}
+
+type episodeKey struct {
+	id, season, episode int
 }
 
 // NewSource creates a metadata source that resolves queries using The Movie Database's API.
-func NewSource(client tmdb.Invoker, lang language.Tag, resolveCast bool) meta.Source {
-	return &source{client: client, lang: lang.String(), credits: resolveCast}
+func NewSource(client tmdb.Invoker, lang language.Tag, cacheExp imcache.Expiration) meta.Source {
+	return &source{client: client, lang: lang.String(), exp: cacheExp}
 }
 
 // FromFile tries to resolve the file name as a query.
@@ -43,11 +52,16 @@ func (s *source) FromQuery(query meta.Query) (meta.Metadata, error) {
 }
 
 func (s *source) fetchConfiguration() (*tmdb.ConfigurationDetailsOK, error) {
+	if s.config != nil {
+		return s.config, nil
+	}
+
 	config, err := s.client.ConfigurationDetails(context.Background())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch configuration")
 	}
 
+	s.config = config
 	return config, nil
 }
 
@@ -67,7 +81,7 @@ func (s *source) searchMulti(query string) (meta.Metadata, error) {
 				case "movie":
 					return s.fetchMovie(id)
 				case "tv":
-					return s.fetchSeries(id, -1, -1)
+					return s.fetchSeries(id)
 				}
 			}
 		}
@@ -105,14 +119,22 @@ func (s *source) searchSeries(query string, season, episode int) (meta.Metadata,
 
 	for _, result := range res.GetResults() {
 		if id, ok := result.GetID().Get(); ok {
-			return s.fetchSeries(id, season, episode)
+			if season >= 0 && episode >= 0 {
+				return s.fetchEpisode(id, season, episode)
+			}
+
+			return s.fetchSeries(id)
 		}
 	}
 
 	return nil, nil
 }
 
-func (s *source) fetchMovie(id int) (meta.Metadata, error) {
+func (s *source) fetchMovie(id int) (meta.MovieOrSeriesMetadata, error) {
+	if m, ok := s.movieSeriesCache.Get(id); ok {
+		return m, nil
+	}
+
 	res, err := s.client.MovieDetails(context.Background(), tmdb.MovieDetailsParams{
 		MovieID:  int32(id),
 		Language: tmdb.NewOptString(s.lang),
@@ -121,15 +143,12 @@ func (s *source) fetchMovie(id int) (meta.Metadata, error) {
 		return nil, errors.Wrap(err, "failed to fetch movie details")
 	}
 
-	var resCredits *tmdb.MovieCreditsOK
-	if s.credits {
-		resCredits, err = s.client.MovieCredits(context.Background(), tmdb.MovieCreditsParams{
-			MovieID:  int32(id),
-			Language: tmdb.NewOptString(s.lang),
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to fetch movie credits")
-		}
+	resCredits, err := s.client.MovieCredits(context.Background(), tmdb.MovieCreditsParams{
+		MovieID:  int32(id),
+		Language: tmdb.NewOptString(s.lang),
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch movie credits")
 	}
 
 	config, err := s.fetchConfiguration()
@@ -142,14 +161,20 @@ func (s *source) fetchMovie(id int) (meta.Metadata, error) {
 		imageConfig = &ic
 	}
 
-	return &movieMetadata{
+	m := &movieMetadata{
 		data:        res,
 		credits:     resCredits,
 		imageConfig: imageConfig,
-	}, nil
+	}
+	s.movieSeriesCache.Set(id, m, s.exp)
+	return m, nil
 }
 
-func (s *source) fetchSeries(id, season, episode int) (meta.Metadata, error) {
+func (s *source) fetchSeries(id int) (meta.MovieOrSeriesMetadata, error) {
+	if m, ok := s.movieSeriesCache.Get(id); ok {
+		return m, nil
+	}
+
 	res, err := s.client.TvSeriesDetails(context.Background(), tmdb.TvSeriesDetailsParams{
 		SeriesID: int32(id),
 		Language: tmdb.NewOptString(s.lang),
@@ -158,15 +183,12 @@ func (s *source) fetchSeries(id, season, episode int) (meta.Metadata, error) {
 		return nil, errors.Wrap(err, "failed to fetch series details")
 	}
 
-	var resCredits *tmdb.TvSeriesCreditsOK
-	if s.credits {
-		resCredits, err = s.client.TvSeriesCredits(context.Background(), tmdb.TvSeriesCreditsParams{
-			SeriesID: int32(id),
-			Language: tmdb.NewOptString(s.lang),
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to fetch series credits")
-		}
+	resCredits, err := s.client.TvSeriesCredits(context.Background(), tmdb.TvSeriesCreditsParams{
+		SeriesID: int32(id),
+		Language: tmdb.NewOptString(s.lang),
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch series credits")
 	}
 
 	config, err := s.fetchConfiguration()
@@ -179,29 +201,56 @@ func (s *source) fetchSeries(id, season, episode int) (meta.Metadata, error) {
 		imageConfig = &ic
 	}
 
-	seriesMeta := &seriesMetadata{
+	m := &seriesMetadata{
 		data:        res,
 		credits:     resCredits,
 		imageConfig: imageConfig,
 	}
-	if season >= 0 && episode >= 0 {
-		episodeRes, err := s.client.TvEpisodeDetails(context.Background(), tmdb.TvEpisodeDetailsParams{
-			SeriesID:      int32(id),
-			SeasonNumber:  int32(season),
-			EpisodeNumber: int32(episode),
-			Language:      tmdb.NewOptString(s.lang),
-		})
-		if err != nil {
-			var usce *validate.UnexpectedStatusCodeError
-			if errors.As(err, &usce) && usce.StatusCode == 404 {
-				return nil, nil // episode-season combination not found
-			}
+	s.movieSeriesCache.Set(id, m, s.exp)
+	return m, nil
+}
 
-			return nil, errors.Wrap(err, "failed to fetch episode details")
-		}
-
-		return &episodeMetadata{seriesMetadata: seriesMeta, data: episodeRes}, nil
+func (s *source) fetchEpisode(id, season, episode int) (meta.EpisodeMetadata, error) {
+	key := episodeKey{id: id, season: season, episode: episode}
+	if m, ok := s.episodeCache.Get(key); ok {
+		return m, nil
 	}
 
-	return seriesMeta, nil
+	seriesMeta, err := s.fetchSeries(id)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch series metadata")
+	}
+
+	episodeRes, err := s.client.TvEpisodeDetails(context.Background(), tmdb.TvEpisodeDetailsParams{
+		SeriesID:      int32(id),
+		SeasonNumber:  int32(season),
+		EpisodeNumber: int32(episode),
+		Language:      tmdb.NewOptString(s.lang),
+	})
+	if err != nil {
+		var usce *validate.UnexpectedStatusCodeError
+		if errors.As(err, &usce) && usce.StatusCode == 404 {
+			return nil, nil // episode-season combination not found
+		}
+
+		return nil, errors.Wrap(err, "failed to fetch episode details")
+	}
+
+	config, err := s.fetchConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
+	var imageConfig *tmdb.ConfigurationDetailsOKImages
+	if ic, ok := config.GetImages().Get(); ok {
+		imageConfig = &ic
+	}
+
+	m := &episodeMetadata{
+		MovieOrSeriesMetadata: seriesMeta,
+		data:                  episodeRes,
+		imageConfig:           imageConfig,
+	}
+	s.episodeCache.Set(key, m, s.exp)
+	return m, nil
 }

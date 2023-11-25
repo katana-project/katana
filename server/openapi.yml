@@ -261,13 +261,25 @@ components:
           description: The promotional images of the media.
           items:
             $ref: '#/components/schemas/Image'
+    ImageType:
+      type: string
+      enum:
+        - unknown
+        - still
+        - backdrop
+        - poster
+        - avatar
     Image:
       type: object
       required:
+        - type
         - path
         - remote
         - description
       properties:
+        type:
+          $ref: '#/components/schemas/ImageType'
+          description: The image type.
         path:
           type: string
           description: The image URL, a remote HTTP resource or raw data (data:image url).

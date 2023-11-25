@@ -104,6 +104,7 @@ func (sm *seriesMetadata) Images() []meta.Image {
 	var images []meta.Image
 	if backdropPath, ok := sm.data.GetBackdropPath().Get(); ok {
 		images = append(images, &image{
+			type_:       meta.ImageTypeBackdrop,
 			path:        backdropPath,
 			description: "Backdrop",
 			config:      sm.imageConfig,
@@ -111,6 +112,7 @@ func (sm *seriesMetadata) Images() []meta.Image {
 	}
 	if posterPath, ok := sm.data.GetPosterPath().Get(); ok {
 		images = append(images, &image{
+			type_:       meta.ImageTypePoster,
 			path:        posterPath,
 			description: "Poster",
 			config:      sm.imageConfig,
@@ -138,6 +140,7 @@ func (scm *seriesCastMember) Image() meta.Image {
 
 	if path, ok := scm.data.GetProfilePath().Get(); ok {
 		return &image{
+			type_:       meta.ImageTypeAvatar,
 			path:        path,
 			description: scm.data.GetName().Or(""),
 			config:      scm.imageConfig,

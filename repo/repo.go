@@ -29,7 +29,7 @@ var (
 )
 
 // Capability is a collection of option flags (integers ORed together).
-type Capability int
+type Capability uint
 
 const (
 	// CapabilityWatch is a flag of a repository that is able to watch for filesystem changes.

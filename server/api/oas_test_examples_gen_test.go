@@ -83,6 +83,18 @@ func TestImage_EncodeDecode(t *testing.T) {
 	var typ2 Image
 	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
 }
+func TestImageType_EncodeDecode(t *testing.T) {
+	var typ ImageType
+	typ.SetFake()
+
+	e := jx.Encoder{}
+	typ.Encode(&e)
+	data := e.Bytes()
+	require.True(t, std.Valid(data), "Encoded: %s", data)
+
+	var typ2 ImageType
+	require.NoError(t, typ2.Decode(jx.DecodeBytes(data)))
+}
 func TestMedia_EncodeDecode(t *testing.T) {
 	var typ Media
 	typ.SetFake()

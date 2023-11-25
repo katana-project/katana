@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/erni27/imcache"
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/katana/repo/media/meta"
@@ -12,9 +13,14 @@ import (
 	"golang.org/x/text/language"
 	"net/http"
 	"os"
+	"time"
 )
 
+// defaultStreamContentDisp is the default Content-Disposition header value for streamed content.
 const defaultStreamContentDisp = "inline"
+
+// imageCacheExp is the cache expiration period for non-remote images' data loaded into memory.
+var imageCacheExp = imcache.WithExpiration(5 * time.Minute)
 
 // GetRepos implements getRepos operation.
 //
@@ -232,15 +238,38 @@ func (s *Server) makeImage(i meta.Image) (api.Image, error) {
 		remote = i.Remote()
 	)
 	if !remote {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return api.Image{}, err
-		}
+		if path0, ok := s.imageCache.Get(path); ok {
+			path = path0
+		} else {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return api.Image{}, err
+			}
 
-		path = fmt.Sprintf("data:%s;base64,%s", http.DetectContentType(b), base64.StdEncoding.EncodeToString(b))
+			data := fmt.Sprintf(
+				"data:%s;base64,%s",
+				http.DetectContentType(b),
+				base64.StdEncoding.EncodeToString(b),
+			)
+			s.imageCache.Set(path, data, imageCacheExp)
+			path = data
+		}
+	}
+
+	type_ := api.ImageTypeUnknown
+	switch i.Type() {
+	case meta.ImageTypeStill:
+		type_ = api.ImageTypeStill
+	case meta.ImageTypeBackdrop:
+		type_ = api.ImageTypeBackdrop
+	case meta.ImageTypePoster:
+		type_ = api.ImageTypePoster
+	case meta.ImageTypeAvatar:
+		type_ = api.ImageTypeAvatar
 	}
 
 	return api.Image{
+		Type:        type_,
 		Path:        path,
 		Remote:      remote,
 		Description: newNilString(i.Description()),

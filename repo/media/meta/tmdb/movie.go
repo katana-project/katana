@@ -111,6 +111,7 @@ func (mm *movieMetadata) Images() []meta.Image {
 	var images []meta.Image
 	if backdropPath, ok := mm.data.GetBackdropPath().Get(); ok {
 		images = append(images, &image{
+			type_:       meta.ImageTypeBackdrop,
 			path:        backdropPath,
 			description: "Backdrop",
 			config:      mm.imageConfig,
@@ -118,6 +119,7 @@ func (mm *movieMetadata) Images() []meta.Image {
 	}
 	if posterPath, ok := mm.data.GetPosterPath().Get(); ok {
 		images = append(images, &image{
+			type_:       meta.ImageTypePoster,
 			path:        posterPath,
 			description: "Poster",
 			config:      mm.imageConfig,
@@ -145,6 +147,7 @@ func (mcm *movieCastMember) Image() meta.Image {
 
 	if path, ok := mcm.data.GetProfilePath().Get(); ok {
 		return &image{
+			type_:       meta.ImageTypeAvatar,
 			path:        path,
 			description: mcm.data.GetName().Or(""),
 			config:      mcm.imageConfig,

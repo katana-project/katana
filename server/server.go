@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/erni27/imcache"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -21,6 +22,8 @@ import (
 type Server struct {
 	repos  map[string]repo.Repository
 	logger *zap.Logger
+
+	imageCache imcache.Cache[string, string] // non-remote image data, base64-encoded data:image URLs
 }
 
 // NewServer creates a new server with pre-defined repositories.

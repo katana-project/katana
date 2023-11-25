@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/erni27/imcache"
 	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/katana/repo/media/meta/tmdb"
@@ -9,10 +10,15 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/text/language"
 	"reflect"
+	"time"
 )
 
-// tmdbApiUrl is the default base URL of the TMDB API.
-var tmdbApiUrl = "https://api.themoviedb.org/"
+var (
+	// tmdbApiUrl is the default base URL of the TMDB API.
+	tmdbApiUrl = "https://api.themoviedb.org/"
+	// tmdbDefaultCacheExp is the default API response cache expiration.
+	tmdbDefaultCacheExp = imcache.WithExpiration(5 * time.Minute)
+)
 
 // tmdbSourceOptions are the configuration options of the TMDB metadata source.
 type tmdbSourceOptions struct {
@@ -22,6 +28,8 @@ type tmdbSourceOptions struct {
 	URL string `mapstructure:"url"`
 	// Lang is the preferred language of the API query results, in a BCP 47 format, defaults to "en-US".
 	Lang string `mapstructure:"lang"`
+	// CacheExp is the API response cache expiration duration in seconds, defaults to 5 minutes (60*5).
+	CacheExp int `mapstructure:"cache_exp"`
 }
 
 // tmdbSecuritySource is a tmdb.SecuritySource implementation that provides a pre-defined key.
@@ -65,7 +73,15 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 			return nil, errors.Wrap(err, "failed to parse tmdb api language preference")
 		}
 
-		return tmdb.NewSource(client, lang, true), nil
+		var (
+			cacheExp     = tmdbDefaultCacheExp
+			cacheExpTime = time.Duration(parsedOpts.CacheExp) * time.Second
+		)
+		if cacheExpTime > 0 {
+			cacheExp = imcache.WithExpiration(cacheExpTime)
+		}
+
+		return tmdb.NewSource(client, lang, cacheExp), nil
 	case "analysis":
 		metaSources := make([]meta.Source, 0, len(options))
 		for sourceName, sourceOptions0 := range options {

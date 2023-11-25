@@ -595,6 +595,10 @@ func (s *Image) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *Image) encodeFields(e *jx.Encoder) {
 	{
+		e.FieldStart("type")
+		s.Type.Encode(e)
+	}
+	{
 		e.FieldStart("path")
 		e.Str(s.Path)
 	}
@@ -608,10 +612,11 @@ func (s *Image) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfImage = [3]string{
-	0: "path",
-	1: "remote",
-	2: "description",
+var jsonFieldsNameOfImage = [4]string{
+	0: "type",
+	1: "path",
+	2: "remote",
+	3: "description",
 }
 
 // Decode decodes Image from json.
@@ -623,8 +628,18 @@ func (s *Image) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "path":
+		case "type":
 			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		case "path":
+			requiredBitSet[0] |= 1 << 1
 			if err := func() error {
 				v, err := d.Str()
 				s.Path = string(v)
@@ -636,7 +651,7 @@ func (s *Image) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"path\"")
 			}
 		case "remote":
-			requiredBitSet[0] |= 1 << 1
+			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				v, err := d.Bool()
 				s.Remote = bool(v)
@@ -648,7 +663,7 @@ func (s *Image) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"remote\"")
 			}
 		case "description":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				if err := s.Description.Decode(d); err != nil {
 					return err
@@ -667,7 +682,7 @@ func (s *Image) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000111,
+		0b00001111,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -709,6 +724,52 @@ func (s *Image) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *Image) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes ImageType as json.
+func (s ImageType) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes ImageType from json.
+func (s *ImageType) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ImageType to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch ImageType(v) {
+	case ImageTypeUnknown:
+		*s = ImageTypeUnknown
+	case ImageTypeStill:
+		*s = ImageTypeStill
+	case ImageTypeBackdrop:
+		*s = ImageTypeBackdrop
+	case ImageTypePoster:
+		*s = ImageTypePoster
+	case ImageTypeAvatar:
+		*s = ImageTypeAvatar
+	default:
+		*s = ImageType(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ImageType) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ImageType) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
