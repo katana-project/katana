@@ -67,3 +67,16 @@ type ErrDuplicatePath struct {
 func (edp *ErrDuplicatePath) Error() string {
 	return fmt.Sprintf("duplicate media path %s in repository %s", edp.Path, edp.Repo)
 }
+
+// ErrUnsupportedFormat is an error about a format unsupported for de/muxing or transcoding.
+type ErrUnsupportedFormat struct {
+	// Format is the offending format name.
+	Format string
+	// Operation is the unsupported operation.
+	Operation string
+}
+
+// Error returns the string representation of the error.
+func (euf *ErrUnsupportedFormat) Error() string {
+	return fmt.Sprintf("unsupported format %s for %s", euf.Format, euf.Operation)
+}

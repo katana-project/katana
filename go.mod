@@ -11,7 +11,8 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-faster/errors v0.7.0
 	github.com/go-faster/jx v1.1.0
-	github.com/katana-project/mux v0.0.0-20231125184526-ff9aae21c181
+	github.com/katana-project/ffmpeg v0.0.0-20231126124327-2d1a6344442d
+	github.com/katana-project/mux v0.0.0-20231126124513-2fe9a12fc5af
 	github.com/katana-project/tmdb v0.0.0-20231116170353-456b0d7a8b32
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/ogen-go/ogen v0.78.0
@@ -19,6 +20,7 @@ require (
 	github.com/urfave/cli/v2 v2.25.7
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
+	golang.org/x/sync v0.5.0
 	golang.org/x/text v0.14.0
 )
 
@@ -30,7 +32,6 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/google/uuid v1.4.0 // indirect
-	github.com/katana-project/ffmpeg v0.0.0-20231125184311-bee6faddc690 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -39,7 +40,6 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.18.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

@@ -41,19 +41,19 @@ func SanitizeID(s string) string {
 
 // BasicMedia is a JSON-serializable generic Media.
 type BasicMedia struct {
-	id   string
-	path string
-	mime string
-	meta meta.Metadata
+	ID_   string
+	Path_ string
+	MIME_ string
+	Meta_ meta.Metadata
 }
 
 // NewMedia creates a Media with set values.
 func NewMedia(id, path string, mime string, meta0 meta.Metadata) Media {
 	return &BasicMedia{
-		id:   id,
-		path: path,
-		mime: mime,
-		meta: meta0,
+		ID_:   id,
+		Path_: path,
+		MIME_: mime,
+		Meta_: meta0,
 	}
 }
 
@@ -67,24 +67,24 @@ func NewBasicMedia(m Media) *BasicMedia {
 	}
 
 	return &BasicMedia{
-		id:   m.ID(),
-		path: m.Path(),
-		mime: m.MIME(),
-		meta: m.Meta(),
+		ID_:   m.ID(),
+		Path_: m.Path(),
+		MIME_: m.MIME(),
+		Meta_: m.Meta(),
 	}
 }
 
 func (bm *BasicMedia) ID() string {
-	return bm.id
+	return bm.ID_
 }
 func (bm *BasicMedia) Path() string {
-	return bm.path
+	return bm.Path_
 }
 func (bm *BasicMedia) MIME() string {
-	return bm.mime
+	return bm.MIME_
 }
 func (bm *BasicMedia) Meta() meta.Metadata {
-	return bm.meta
+	return bm.Meta_
 }
 
 // basicMediaJSONHelper is a helper struct for unmarshalling.
@@ -103,7 +103,7 @@ type metadataJSONHelper struct {
 // MarshalJSON marshals JSON data from this struct.
 func (bm *BasicMedia) MarshalJSON() ([]byte, error) {
 	var meta0 meta.Metadata
-	switch m := bm.meta.(type) {
+	switch m := bm.Meta_.(type) {
 	case meta.EpisodeMetadata:
 		meta0 = meta.NewBasicEpisodeMetadata(m)
 	case meta.MovieOrSeriesMetadata:
@@ -118,9 +118,9 @@ func (bm *BasicMedia) MarshalJSON() ([]byte, error) {
 		MIME string        `json:"mime"`
 		Meta meta.Metadata `json:"meta"`
 	}{
-		ID:   bm.id,
-		Path: bm.path,
-		MIME: bm.mime,
+		ID:   bm.ID_,
+		Path: bm.Path_,
+		MIME: bm.MIME_,
 		Meta: meta0,
 	})
 }
@@ -132,9 +132,9 @@ func (bm *BasicMedia) UnmarshalJSON(bytes []byte) error {
 		return err
 	}
 
-	bm.id = helper.ID
-	bm.path = helper.Path
-	bm.mime = helper.MIME
+	bm.ID_ = helper.ID
+	bm.Path_ = helper.Path
+	bm.MIME_ = helper.MIME
 
 	var metaBase metadataJSONHelper
 	if err := json.Unmarshal(helper.Meta, &metaBase); err != nil {
@@ -148,21 +148,21 @@ func (bm *BasicMedia) UnmarshalJSON(bytes []byte) error {
 			return err
 		}
 
-		bm.meta = &metaData
+		bm.Meta_ = &metaData
 	case meta.TypeMovie, meta.TypeSeries:
 		var metaData meta.BasicMovieOrSeriesMetadata
 		if err := json.Unmarshal(helper.Meta, &metaData); err != nil {
 			return err
 		}
 
-		bm.meta = &metaData
+		bm.Meta_ = &metaData
 	case meta.TypeEpisode:
 		var metaData meta.BasicEpisodeMetadata
 		if err := json.Unmarshal(helper.Meta, &metaData); err != nil {
 			return err
 		}
 
-		bm.meta = &metaData
+		bm.Meta_ = &metaData
 	default:
 		return errors.Errorf("unexpected metadata type %d", metaBase.Type)
 	}

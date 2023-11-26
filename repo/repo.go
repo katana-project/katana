@@ -68,7 +68,7 @@ type Repository interface {
 	AddPath(path string) error
 	// Remove removes media from the repository.
 	Remove(m media.Media) error
-	// RemovePath removes media with the supplied path from the repository.
+	// RemovePath removes media with the supplied absolute path from the repository.
 	RemovePath(path string) error
 	// Items returns the pieces of media in this repository.
 	Items() []media.Media
@@ -83,8 +83,8 @@ type Repository interface {
 type MuxingRepository interface {
 	Repository
 
-	// Remux remuxes media to the desired container format and returns the remuxed media.
-	Remux(m media.Media, fmt media.Format) (media.Media, error)
+	// Remux remuxes media to the desired container format and returns the remuxed media or nil, if the ID wasn't found.
+	Remux(id string, format *media.Format) (media.Media, error)
 }
 
 // ValidID checks whether the supplied string is a valid repository ID.
