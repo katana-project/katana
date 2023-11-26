@@ -7,9 +7,9 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/katana-project/ffmpeg/avutil"
 	"github.com/katana-project/katana/repo"
+	"github.com/katana-project/katana/repo/internal/sync"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/mux"
-	"golang.org/x/sync/singleflight"
 	"io"
 	"io/fs"
 	"os"
@@ -49,7 +49,7 @@ type muxRepository struct {
 	path      string
 	remuxPath string
 
-	sf singleflight.Group
+	mu sync.KMutex
 }
 
 // relocatedMedia is a media.Media delegate that changes the destination path.
@@ -96,7 +96,7 @@ func (mr *muxRepository) Remove(m media.Media) error {
 		return err
 	}
 
-	return /*mr.remove(m.Path())*/ nil // TODO: concurrency concerns
+	return mr.remove(m.Path())
 }
 
 func (mr *muxRepository) RemovePath(path string) error {
@@ -105,7 +105,7 @@ func (mr *muxRepository) RemovePath(path string) error {
 		return err
 	}
 
-	return /*mr.remove(path)*/ nil // TODO: concurrency concerns
+	return mr.remove(path)
 }
 
 // remove cleans all remuxed and transcoded variants of the supplied media path.
@@ -127,7 +127,10 @@ func (mr *muxRepository) remove(path string) error {
 		if !info.IsDir() {
 			fileName := info.Name()
 			if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hashHex {
-				return os.Remove(path)
+				_, err := mr.mu.Do(path, func() (interface{}, error) {
+					return nil, os.Remove(path)
+				})
+				return err
 			}
 		}
 
@@ -170,7 +173,7 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 		hashHex     = hex.EncodeToString(hash[:])
 		remuxedPath = filepath.Join(mr.remuxPath, hashHex+"."+format.Extension)
 	)
-	v, err, _ := mr.sf.Do(remuxedPath, func() (interface{}, error) {
+	res, err := mr.mu.Do(path, func() (interface{}, error) {
 		remuxMedia := &relocatedMedia{Media: m, path: remuxedPath}
 		if _, err := os.Stat(remuxMedia.path); err == nil {
 			return remuxMedia, nil // already remuxed
@@ -194,7 +197,7 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 		return nil, err
 	}
 
-	return v.(media.Media), nil
+	return res.(media.Media), nil
 }
 
 func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
