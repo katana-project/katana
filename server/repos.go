@@ -93,18 +93,37 @@ func (s *Server) GetRepoMediaById(_ context.Context, params api.GetRepoMediaById
 	return &m0, nil
 }
 
-// GetRepoMediaRawStream implements getRepoMediaRawStream operation.
+// GetRepoMediaStream implements getRepoMediaStream operation.
 //
-// Gets media by its ID in a repository and returns an HTTP media stream of the original file.
+// Gets media by its ID in a repository and returns an HTTP media stream of the file.
 //
-// GET /repos/{repoId}/media/{mediaId}/stream/raw
-func (s *Server) GetRepoMediaRawStream(ctx context.Context, params api.GetRepoMediaRawStreamParams) (api.GetRepoMediaRawStreamRes, error) {
+// GET /repos/{repoId}/media/{mediaId}/stream/{format}
+func (s *Server) GetRepoMediaStream(ctx context.Context, params api.GetRepoMediaStreamParams) (api.GetRepoMediaStreamRes, error) {
 	rp, ok := s.repos[params.RepoId]
 	if !ok {
 		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
 	}
 
-	m := rp.Get(params.MediaId)
+	var m media.Media
+	if params.Format == "raw" {
+		m = rp.Get(params.MediaId)
+	} else {
+		if !rp.Capabilities().Has(repo.CapabilityRemux) {
+			return s.newError(api.ErrorTypeMissingCapability, "missing 'remux' capability"), nil
+		}
+
+		format := media.FindFormat(string(params.Format))
+		if format == nil {
+			return s.newError(api.ErrorTypeUnknownFormat, fmt.Sprintf("unknown format '%s'", params.Format)), nil
+		}
+
+		var err error
+		m, err = rp.(repo.MuxingRepository).Remux(params.MediaId, format)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if m == nil {
 		return s.newError(api.ErrorTypeNotFound, "media not found"), nil
 	}

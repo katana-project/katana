@@ -140,6 +140,8 @@ func (s ErrorType) Validate() error {
 		return nil
 	case "missing_capability":
 		return nil
+	case "unknown_format":
+		return nil
 	case "internal_error":
 		return nil
 	default:
@@ -259,6 +261,19 @@ func (s *Media) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s MediaFormat) Validate() error {
+	switch s {
+	case "raw":
+		return nil
+	case "mp4":
+		return nil
+	case "mkv":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s MediaMeta) Validate() error {

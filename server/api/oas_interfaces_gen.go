@@ -9,10 +9,10 @@ type GetRepoMediaByIdRes interface {
 	getRepoMediaByIdRes()
 }
 
-type GetRepoMediaRawStreamRes interface {
-	getRepoMediaRawStreamRes()
-}
-
 type GetRepoMediaRes interface {
 	getRepoMediaRes()
+}
+
+type GetRepoMediaStreamRes interface {
+	getRepoMediaStreamRes()
 }

@@ -40,7 +40,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	args := [2]string{}
+	args := [3]string{}
 
 	// Static code generated router with unwrapped path search.
 	switch {
@@ -146,20 +146,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							return
 						}
 						switch elem[0] {
-						case '/': // Prefix: "/stream/raw"
-							if l := len("/stream/raw"); len(elem) >= l && elem[0:l] == "/stream/raw" {
+						case '/': // Prefix: "/stream/"
+							if l := len("/stream/"); len(elem) >= l && elem[0:l] == "/stream/" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
+							// Param: "format"
+							// Leaf parameter
+							args[2] = elem
+							elem = ""
+
 							if len(elem) == 0 {
 								// Leaf node.
 								switch r.Method {
 								case "GET":
-									s.handleGetRepoMediaRawStreamRequest([2]string{
+									s.handleGetRepoMediaStreamRequest([3]string{
 										args[0],
 										args[1],
+										args[2],
 									}, elemIsEscaped, w, r)
 								default:
 									s.notAllowed(w, r, "GET")
@@ -183,7 +189,7 @@ type Route struct {
 	operationID string
 	pathPattern string
 	count       int
-	args        [2]string
+	args        [3]string
 }
 
 // Name returns ogen operation name.
@@ -357,23 +363,28 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							}
 						}
 						switch elem[0] {
-						case '/': // Prefix: "/stream/raw"
-							if l := len("/stream/raw"); len(elem) >= l && elem[0:l] == "/stream/raw" {
+						case '/': // Prefix: "/stream/"
+							if l := len("/stream/"); len(elem) >= l && elem[0:l] == "/stream/" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
+							// Param: "format"
+							// Leaf parameter
+							args[2] = elem
+							elem = ""
+
 							if len(elem) == 0 {
 								switch method {
 								case "GET":
-									// Leaf: GetRepoMediaRawStream
-									r.name = "GetRepoMediaRawStream"
-									r.summary = "Gets a raw HTTP media stream."
-									r.operationID = "getRepoMediaRawStream"
-									r.pathPattern = "/repos/{repoId}/media/{mediaId}/stream/raw"
+									// Leaf: GetRepoMediaStream
+									r.name = "GetRepoMediaStream"
+									r.summary = "Gets a HTTP media stream."
+									r.operationID = "getRepoMediaStream"
+									r.pathPattern = "/repos/{repoId}/media/{mediaId}/stream/{format}"
 									r.args = args
-									r.count = 2
+									r.count = 3
 									return r, true
 								default:
 									return

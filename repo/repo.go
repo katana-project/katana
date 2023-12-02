@@ -100,19 +100,22 @@ func SanitizeID(s string) string {
 	return idCharExclusivePattern.ReplaceAllLiteralString(spaceLessLowerCase, "")
 }
 
+// crudRepository is an implementation of a Repository.
 type crudRepository struct {
 	id         string
 	name       string
 	path       string
 	metaSource meta.Source
 	logger     *zap.Logger
-	mu         sync.RWMutex
+
+	mu sync.RWMutex
 
 	// these two should be kept in sync - use addItem and removeItem
 	itemsById   map[string]media.Media
 	itemsByPath map[string]media.Media
 }
 
+// NewRepository creates a file-based CRUD repository.
 func NewRepository(id, name, path string, metaSource meta.Source, logger *zap.Logger) (Repository, error) {
 	if !ValidID(id) {
 		return nil, &ErrInvalidID{

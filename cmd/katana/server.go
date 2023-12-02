@@ -11,6 +11,7 @@ import (
 	"os/signal"
 )
 
+// handleServer handles the server sub-command.
 func (ac *appContext) handleServer(cCtx *cli.Context) error {
 	cfg, err := config.Parse(cCtx.String("config"))
 	if err != nil {

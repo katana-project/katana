@@ -11,20 +11,24 @@ import (
 	"time"
 )
 
+// indexedRepository is a wrapping Repository with a CapabilityIndex capability.
 type indexedRepository struct {
 	Repository
 
 	path       string
 	oldPath    string
-	pathParent string
+	parentPath string
 	logger     *zap.Logger
-	mu         sync.Mutex
+
+	mu sync.Mutex
 }
 
+// index is a JSON-serializable media index.
 type index struct {
 	Items []*media.BasicMedia `json:"items"`
 }
 
+// NewIndexedRepository creates a file-based indexing repository.
 func NewIndexedRepository(repo Repository, path string, logger *zap.Logger) (Repository, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -37,7 +41,7 @@ func NewIndexedRepository(repo Repository, path string, logger *zap.Logger) (Rep
 		Repository: repo,
 		path:       absPath,
 		oldPath:    filepath.Join(dirPath, fileName+".old"),
-		pathParent: dirPath,
+		parentPath: dirPath,
 		logger:     logger,
 	}
 	if err := ir.load(); err != nil {
@@ -127,11 +131,11 @@ func (ir *indexedRepository) save() error {
 		return errors.Wrap(err, "failed to marshal index")
 	}
 
-	if err := os.MkdirAll(ir.pathParent, 0); err != nil {
+	if err := os.MkdirAll(ir.parentPath, 0); err != nil {
 		return errors.Wrap(err, "failed to make directories")
 	}
 
-	if err := ir.copyOld(); err != nil {
+	if err := ir.copy(); err != nil {
 		return errors.Wrap(err, "failed to copy old index file")
 	}
 
@@ -142,7 +146,7 @@ func (ir *indexedRepository) save() error {
 	return nil
 }
 
-func (ir *indexedRepository) copyOld() error {
+func (ir *indexedRepository) copy() error {
 	if ir.logger != nil {
 		copyTime := time.Now()
 		defer func() {
@@ -168,7 +172,6 @@ func (ir *indexedRepository) copyOld() error {
 	return os.WriteFile(ir.oldPath, bytes, 0)
 }
 
-// Scan tries to recursively discover missing media from the repository root directory.
 func (ir *indexedRepository) Scan() error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
@@ -181,7 +184,6 @@ func (ir *indexedRepository) Scan() error {
 	return ir.save()
 }
 
-// Add adds media to the repository.
 func (ir *indexedRepository) Add(m media.Media) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
@@ -194,7 +196,6 @@ func (ir *indexedRepository) Add(m media.Media) error {
 	return ir.save()
 }
 
-// AddPath adds media at the supplied path to the repository.
 func (ir *indexedRepository) AddPath(path string) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
@@ -207,7 +208,6 @@ func (ir *indexedRepository) AddPath(path string) error {
 	return ir.save()
 }
 
-// Remove removes media from the repository.
 func (ir *indexedRepository) Remove(m media.Media) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
@@ -219,7 +219,6 @@ func (ir *indexedRepository) Remove(m media.Media) error {
 	return ir.save()
 }
 
-// RemovePath removes media with the supplied path from the repository.
 func (ir *indexedRepository) RemovePath(path string) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()

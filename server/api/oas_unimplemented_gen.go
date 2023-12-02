@@ -40,12 +40,12 @@ func (UnimplementedHandler) GetRepoMediaById(ctx context.Context, params GetRepo
 	return r, ht.ErrNotImplemented
 }
 
-// GetRepoMediaRawStream implements getRepoMediaRawStream operation.
+// GetRepoMediaStream implements getRepoMediaStream operation.
 //
-// Gets media by its ID in a repository and returns an HTTP media stream of the original file.
+// Gets media by its ID in a repository and returns an HTTP media stream of the file.
 //
-// GET /repos/{repoId}/media/{mediaId}/stream/raw
-func (UnimplementedHandler) GetRepoMediaRawStream(ctx context.Context, params GetRepoMediaRawStreamParams) (r GetRepoMediaRawStreamRes, _ error) {
+// GET /repos/{repoId}/media/{mediaId}/stream/{format}
+func (UnimplementedHandler) GetRepoMediaStream(ctx context.Context, params GetRepoMediaStreamParams) (r GetRepoMediaStreamRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

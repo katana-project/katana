@@ -1,5 +1,7 @@
 package media
 
+import "strings"
+
 // Format is a media file container format.
 type Format struct {
 	// Name is the container format name.
@@ -30,4 +32,16 @@ var (
 // Formats returns all default formats.
 func Formats() []*Format {
 	return formats
+}
+
+// FindFormat tries to find a format by name, returns nil if not found.
+func FindFormat(name string) *Format {
+	name = strings.ToLower(name)
+	for _, format := range formats {
+		if name == strings.ToLower(format.Name) {
+			return format
+		}
+	}
+
+	return nil
 }

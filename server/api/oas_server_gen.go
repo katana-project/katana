@@ -26,12 +26,12 @@ type Handler interface {
 	//
 	// GET /repos/{repoId}/media/{mediaId}
 	GetRepoMediaById(ctx context.Context, params GetRepoMediaByIdParams) (GetRepoMediaByIdRes, error)
-	// GetRepoMediaRawStream implements getRepoMediaRawStream operation.
+	// GetRepoMediaStream implements getRepoMediaStream operation.
 	//
-	// Gets media by its ID in a repository and returns an HTTP media stream of the original file.
+	// Gets media by its ID in a repository and returns an HTTP media stream of the file.
 	//
-	// GET /repos/{repoId}/media/{mediaId}/stream/raw
-	GetRepoMediaRawStream(ctx context.Context, params GetRepoMediaRawStreamParams) (GetRepoMediaRawStreamRes, error)
+	// GET /repos/{repoId}/media/{mediaId}/stream/{format}
+	GetRepoMediaStream(ctx context.Context, params GetRepoMediaStreamParams) (GetRepoMediaStreamRes, error)
 	// GetRepos implements getRepos operation.
 	//
 	// Lists all repositories currently known to the server.

@@ -331,15 +331,17 @@ func decodeGetRepoMediaByIdParams(args [2]string, argsEscaped bool, r *http.Requ
 	return params, nil
 }
 
-// GetRepoMediaRawStreamParams is parameters of getRepoMediaRawStream operation.
-type GetRepoMediaRawStreamParams struct {
+// GetRepoMediaStreamParams is parameters of getRepoMediaStream operation.
+type GetRepoMediaStreamParams struct {
 	// The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
 	RepoId string
 	// The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
 	MediaId string
+	// The media format, remuxing may occur if not "raw".
+	Format MediaFormat
 }
 
-func unpackGetRepoMediaRawStreamParams(packed middleware.Parameters) (params GetRepoMediaRawStreamParams) {
+func unpackGetRepoMediaStreamParams(packed middleware.Parameters) (params GetRepoMediaStreamParams) {
 	{
 		key := middleware.ParameterKey{
 			Name: "repoId",
@@ -354,10 +356,17 @@ func unpackGetRepoMediaRawStreamParams(packed middleware.Parameters) (params Get
 		}
 		params.MediaId = packed[key].(string)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "format",
+			In:   "path",
+		}
+		params.Format = packed[key].(MediaFormat)
+	}
 	return params
 }
 
-func decodeGetRepoMediaRawStreamParams(args [2]string, argsEscaped bool, r *http.Request) (params GetRepoMediaRawStreamParams, _ error) {
+func decodeGetRepoMediaStreamParams(args [3]string, argsEscaped bool, r *http.Request) (params GetRepoMediaStreamParams, _ error) {
 	// Decode path: repoId.
 	if err := func() error {
 		param := args[0]
@@ -476,6 +485,59 @@ func decodeGetRepoMediaRawStreamParams(args [2]string, argsEscaped bool, r *http
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "mediaId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: format.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "format",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Format = MediaFormat(c)
+				return nil
+			}(); err != nil {
+				return err
+			}
+			if err := func() error {
+				if err := params.Format.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "format",
 			In:   "path",
 			Err:  err,
 		}

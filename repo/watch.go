@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// watchedRepository is a wrapping Repository with a CapabilityWatch capability.
 type watchedRepository struct {
 	Repository
 
@@ -21,6 +22,7 @@ type watchedRepository struct {
 	watcher *fsnotify.Watcher
 }
 
+// NewWatchedRepository creates a repository with a filesystem watcher.
 func NewWatchedRepository(repo Repository, logger *zap.Logger) (Repository, error) {
 	if wr, ok := repo.(*watchedRepository); ok {
 		return wr, nil

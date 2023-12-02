@@ -513,6 +513,8 @@ func (s *ErrorType) Decode(d *jx.Decoder) error {
 		*s = ErrorTypeNotFound
 	case ErrorTypeMissingCapability:
 		*s = ErrorTypeMissingCapability
+	case ErrorTypeUnknownFormat:
+		*s = ErrorTypeUnknownFormat
 	case ErrorTypeInternalError:
 		*s = ErrorTypeInternalError
 	default:

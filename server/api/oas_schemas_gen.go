@@ -189,10 +189,10 @@ func (s *Error) SetDescription(val string) {
 	s.Description = val
 }
 
-func (*Error) getRepoByIdRes()           {}
-func (*Error) getRepoMediaByIdRes()      {}
-func (*Error) getRepoMediaRawStreamRes() {}
-func (*Error) getRepoMediaRes()          {}
+func (*Error) getRepoByIdRes()        {}
+func (*Error) getRepoMediaByIdRes()   {}
+func (*Error) getRepoMediaRes()       {}
+func (*Error) getRepoMediaStreamRes() {}
 
 // Ref: #/components/schemas/ErrorType
 type ErrorType string
@@ -200,6 +200,7 @@ type ErrorType string
 const (
 	ErrorTypeNotFound          ErrorType = "not_found"
 	ErrorTypeMissingCapability ErrorType = "missing_capability"
+	ErrorTypeUnknownFormat     ErrorType = "unknown_format"
 	ErrorTypeInternalError     ErrorType = "internal_error"
 )
 
@@ -208,6 +209,7 @@ func (ErrorType) AllValues() []ErrorType {
 	return []ErrorType{
 		ErrorTypeNotFound,
 		ErrorTypeMissingCapability,
+		ErrorTypeUnknownFormat,
 		ErrorTypeInternalError,
 	}
 }
@@ -218,6 +220,8 @@ func (s ErrorType) MarshalText() ([]byte, error) {
 	case ErrorTypeNotFound:
 		return []byte(s), nil
 	case ErrorTypeMissingCapability:
+		return []byte(s), nil
+	case ErrorTypeUnknownFormat:
 		return []byte(s), nil
 	case ErrorTypeInternalError:
 		return []byte(s), nil
@@ -235,6 +239,9 @@ func (s *ErrorType) UnmarshalText(data []byte) error {
 	case ErrorTypeMissingCapability:
 		*s = ErrorTypeMissingCapability
 		return nil
+	case ErrorTypeUnknownFormat:
+		*s = ErrorTypeUnknownFormat
+		return nil
 	case ErrorTypeInternalError:
 		*s = ErrorTypeInternalError
 		return nil
@@ -247,14 +254,14 @@ type GetRepoMediaOKApplicationJSON []Media
 
 func (*GetRepoMediaOKApplicationJSON) getRepoMediaRes() {}
 
-type GetRepoMediaRawStreamOK struct {
+type GetRepoMediaStreamOK struct {
 	Data io.ReadCloser
 }
 
 // Read reads data from the Data reader.
 //
 // Kept to satisfy the io.Reader interface.
-func (s GetRepoMediaRawStreamOK) Read(p []byte) (n int, err error) {
+func (s GetRepoMediaStreamOK) Read(p []byte) (n int, err error) {
 	if s.Data == nil {
 		return 0, io.EOF
 	}
@@ -264,40 +271,40 @@ func (s GetRepoMediaRawStreamOK) Read(p []byte) (n int, err error) {
 // Close closes the Data reader.
 //
 // Kept to satisfy the io.Closer interface.
-func (s GetRepoMediaRawStreamOK) Close() error {
+func (s GetRepoMediaStreamOK) Close() error {
 	if s.Data == nil {
 		return nil
 	}
 	return s.Data.Close()
 }
 
-// GetRepoMediaRawStreamOKHeaders wraps GetRepoMediaRawStreamOK with response headers.
-type GetRepoMediaRawStreamOKHeaders struct {
+// GetRepoMediaStreamOKHeaders wraps GetRepoMediaStreamOK with response headers.
+type GetRepoMediaStreamOKHeaders struct {
 	ContentDisposition OptString
-	Response           GetRepoMediaRawStreamOK
+	Response           GetRepoMediaStreamOK
 }
 
 // GetContentDisposition returns the value of ContentDisposition.
-func (s *GetRepoMediaRawStreamOKHeaders) GetContentDisposition() OptString {
+func (s *GetRepoMediaStreamOKHeaders) GetContentDisposition() OptString {
 	return s.ContentDisposition
 }
 
 // GetResponse returns the value of Response.
-func (s *GetRepoMediaRawStreamOKHeaders) GetResponse() GetRepoMediaRawStreamOK {
+func (s *GetRepoMediaStreamOKHeaders) GetResponse() GetRepoMediaStreamOK {
 	return s.Response
 }
 
 // SetContentDisposition sets the value of ContentDisposition.
-func (s *GetRepoMediaRawStreamOKHeaders) SetContentDisposition(val OptString) {
+func (s *GetRepoMediaStreamOKHeaders) SetContentDisposition(val OptString) {
 	s.ContentDisposition = val
 }
 
 // SetResponse sets the value of Response.
-func (s *GetRepoMediaRawStreamOKHeaders) SetResponse(val GetRepoMediaRawStreamOK) {
+func (s *GetRepoMediaStreamOKHeaders) SetResponse(val GetRepoMediaStreamOK) {
 	s.Response = val
 }
 
-func (*GetRepoMediaRawStreamOKHeaders) getRepoMediaRawStreamRes() {}
+func (*GetRepoMediaStreamOKHeaders) getRepoMediaStreamRes() {}
 
 // Ref: #/components/schemas/Image
 type Image struct {
@@ -442,6 +449,55 @@ func (s *Media) SetMeta(val NilMediaMeta) {
 }
 
 func (*Media) getRepoMediaByIdRes() {}
+
+// Ref: #/components/schemas/MediaFormat
+type MediaFormat string
+
+const (
+	MediaFormatRaw MediaFormat = "raw"
+	MediaFormatMP4 MediaFormat = "mp4"
+	MediaFormatMkv MediaFormat = "mkv"
+)
+
+// AllValues returns all MediaFormat values.
+func (MediaFormat) AllValues() []MediaFormat {
+	return []MediaFormat{
+		MediaFormatRaw,
+		MediaFormatMP4,
+		MediaFormatMkv,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s MediaFormat) MarshalText() ([]byte, error) {
+	switch s {
+	case MediaFormatRaw:
+		return []byte(s), nil
+	case MediaFormatMP4:
+		return []byte(s), nil
+	case MediaFormatMkv:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *MediaFormat) UnmarshalText(data []byte) error {
+	switch MediaFormat(data) {
+	case MediaFormatRaw:
+		*s = MediaFormatRaw
+		return nil
+	case MediaFormatMP4:
+		*s = MediaFormatMP4
+		return nil
+	case MediaFormatMkv:
+		*s = MediaFormatMkv
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
 
 // MediaMeta represents sum type.
 type MediaMeta struct {

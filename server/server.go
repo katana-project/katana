@@ -162,6 +162,7 @@ func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (http.Handler, 
 	return NewRouter(server, logger)
 }
 
+// Repos returns all repositories available to the server.
 func (s *Server) Repos() []repo.Repository {
 	return maps.Values(s.repos)
 }

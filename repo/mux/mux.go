@@ -52,15 +52,20 @@ type muxRepository struct {
 	mu sync.KMutex
 }
 
-// relocatedMedia is a media.Media delegate that changes the destination path.
+// relocatedMedia is a media.Media delegate that changes the destination path and MIME type.
 type relocatedMedia struct {
 	media.Media
 
 	path string
+	mime string
 }
 
 func (rm *relocatedMedia) Path() string {
 	return rm.path
+}
+
+func (rm *relocatedMedia) MIME() string {
+	return rm.mime
 }
 
 // NewMuxRepository creates a new mux-backed repo.MuxingRepository.
@@ -174,7 +179,11 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 		remuxedPath = filepath.Join(mr.remuxPath, hashHex+"."+format.Extension)
 	)
 	res, err := mr.mu.Do(path, func() (interface{}, error) {
-		remuxMedia := &relocatedMedia{Media: m, path: remuxedPath}
+		remuxMedia := &relocatedMedia{
+			Media: m,
+			path:  remuxedPath,
+			mime:  format.MIME,
+		}
 		if _, err := os.Stat(remuxMedia.path); err == nil {
 			return remuxMedia, nil // already remuxed
 		}

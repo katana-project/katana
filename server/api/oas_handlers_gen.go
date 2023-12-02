@@ -291,12 +291,12 @@ func (s *Server) handleGetRepoMediaByIdRequest(args [2]string, argsEscaped bool,
 	}
 }
 
-// handleGetRepoMediaRawStreamRequest handles getRepoMediaRawStream operation.
+// handleGetRepoMediaStreamRequest handles getRepoMediaStream operation.
 //
-// Gets media by its ID in a repository and returns an HTTP media stream of the original file.
+// Gets media by its ID in a repository and returns an HTTP media stream of the file.
 //
-// GET /repos/{repoId}/media/{mediaId}/stream/raw
-func (s *Server) handleGetRepoMediaRawStreamRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /repos/{repoId}/media/{mediaId}/stream/{format}
+func (s *Server) handleGetRepoMediaStreamRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	dw := &doneWriter{ResponseWriter: w}
 	ctx = context.WithValue(context.WithValue(ctx, WriterCtxKey, dw), RequestCtxKey, r)
@@ -304,11 +304,11 @@ func (s *Server) handleGetRepoMediaRawStreamRequest(args [2]string, argsEscaped 
 	var (
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: "GetRepoMediaRawStream",
-			ID:   "getRepoMediaRawStream",
+			Name: "GetRepoMediaStream",
+			ID:   "getRepoMediaStream",
 		}
 	)
-	params, err := decodeGetRepoMediaRawStreamParams(args, argsEscaped, r)
+	params, err := decodeGetRepoMediaStreamParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -319,13 +319,13 @@ func (s *Server) handleGetRepoMediaRawStreamRequest(args [2]string, argsEscaped 
 		return
 	}
 
-	var response GetRepoMediaRawStreamRes
+	var response GetRepoMediaStreamRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    "GetRepoMediaRawStream",
-			OperationSummary: "Gets a raw HTTP media stream.",
-			OperationID:      "getRepoMediaRawStream",
+			OperationName:    "GetRepoMediaStream",
+			OperationSummary: "Gets a HTTP media stream.",
+			OperationID:      "getRepoMediaStream",
 			Body:             nil,
 			Params: middleware.Parameters{
 				{
@@ -336,14 +336,18 @@ func (s *Server) handleGetRepoMediaRawStreamRequest(args [2]string, argsEscaped 
 					Name: "mediaId",
 					In:   "path",
 				}: params.MediaId,
+				{
+					Name: "format",
+					In:   "path",
+				}: params.Format,
 			},
 			Raw: r,
 		}
 
 		type (
 			Request  = struct{}
-			Params   = GetRepoMediaRawStreamParams
-			Response = GetRepoMediaRawStreamRes
+			Params   = GetRepoMediaStreamParams
+			Response = GetRepoMediaStreamRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -352,14 +356,14 @@ func (s *Server) handleGetRepoMediaRawStreamRequest(args [2]string, argsEscaped 
 		](
 			m,
 			mreq,
-			unpackGetRepoMediaRawStreamParams,
+			unpackGetRepoMediaStreamParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.GetRepoMediaRawStream(ctx, params)
+				response, err = s.h.GetRepoMediaStream(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.GetRepoMediaRawStream(ctx, params)
+		response, err = s.h.GetRepoMediaStream(ctx, params)
 	}
 	if err != nil {
 		recordError("Internal", err)
@@ -370,7 +374,7 @@ func (s *Server) handleGetRepoMediaRawStreamRequest(args [2]string, argsEscaped 
 	if dw.done { // handler already wrote response manually, skip wrapper encoding
 		return
 	}
-	if err := encodeGetRepoMediaRawStreamResponse(response, w); err != nil {
+	if err := encodeGetRepoMediaStreamResponse(response, w); err != nil {
 		recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)

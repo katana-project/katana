@@ -120,14 +120,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /repos/{repoId}/media/{mediaId}/stream/raw:
+  /repos/{repoId}/media/{mediaId}/stream/{format}:
     get:
-      summary: Gets a raw HTTP media stream.
-      description: Gets media by its ID in a repository and returns an HTTP media stream of the original file.
+      summary: Gets a HTTP media stream.
+      description: Gets media by its ID in a repository and returns an HTTP media stream of the file.
       tags:
         - repositories
         - media
-      operationId: getRepoMediaRawStream
+      operationId: getRepoMediaStream
       parameters:
         - in: path
           name: repoId
@@ -143,6 +143,12 @@ paths:
           schema:
             type: string
             pattern: ^[a-z0-9-_]+$
+        - in: path
+          name: format
+          description: The media format, remuxing may occur if not "raw".
+          required: true
+          schema:
+            $ref: '#/components/schemas/MediaFormat'
       responses:
         '200':
           description: Successful response
@@ -158,7 +164,7 @@ paths:
               type: string
               format: binary
         '400':
-          description: Repository or media not found
+          description: Repository or media not found, unknown format or repository not remux-capable
           content:
             application/json:
               schema:
@@ -177,6 +183,7 @@ components:
       enum:
         - not_found
         - missing_capability
+        - unknown_format
         - internal_error
     Error:
       type: object
@@ -189,6 +196,12 @@ components:
         description:
           type: string
           description: The error description.
+    MediaFormat:
+      type: string
+      enum:
+        - raw
+        - mp4
+        - mkv
     RepositoryCapability:
       type: string
       enum:
