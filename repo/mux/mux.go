@@ -48,6 +48,7 @@ type muxRepository struct {
 
 	path      string
 	remuxPath string
+	transcode bool
 
 	mu sync.KMutex
 }
@@ -68,8 +69,8 @@ func (rm *relocatedMedia) MIME() string {
 	return rm.mime
 }
 
-// NewMuxRepository creates a new mux-backed repo.MuxingRepository.
-func NewMuxRepository(repo repo.Repository, path string) (repo.MuxingRepository, error) {
+// NewRepository creates a new mux-backed repo.MuxingRepository.
+func NewRepository(repo repo.Repository, path string, transcode bool) (repo.MuxingRepository, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -80,19 +81,27 @@ func NewMuxRepository(repo repo.Repository, path string) (repo.MuxingRepository,
 	}
 
 	remuxPath := filepath.Join(absPath, "remux")
-	if err := os.Mkdir(remuxPath, 0); err != nil {
-		return nil, errors.Wrap(err, "failed to make remux directory")
+	if _, err := os.Stat(remuxPath); errors.Is(err, fs.ErrNotExist) {
+		if err := os.Mkdir(remuxPath, 0); err != nil {
+			return nil, errors.Wrap(err, "failed to make remux directory")
+		}
 	}
 
 	return &muxRepository{
 		Repository: repo,
 		path:       absPath,
 		remuxPath:  remuxPath,
+		transcode:  transcode,
 	}, nil
 }
 
 func (mr *muxRepository) Capabilities() repo.Capability {
-	return mr.Repository.Capabilities() | repo.CapabilityRemux | repo.CapabilityTranscode
+	c := mr.Repository.Capabilities() | repo.CapabilityRemux
+	if mr.transcode {
+		c |= repo.CapabilityTranscode
+	}
+
+	return c
 }
 
 func (mr *muxRepository) Remove(m media.Media) error {
@@ -279,4 +288,8 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 	}
 
 	return err
+}
+
+func (mr *muxRepository) Muxing() repo.MuxingRepository {
+	return mr
 }

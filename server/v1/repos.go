@@ -62,11 +62,16 @@ func (s *Server) GetRepoMedia(_ context.Context, params v1.GetRepoMediaParams) (
 	}
 
 	var (
+		imageMode = v1.ImageModeNone
+
 		items     = r.Items()
 		repoMedia = make([]v1.Media, len(items))
 	)
+	if im, ok := params.Images.Get(); ok {
+		imageMode = im
+	}
 	for i, item := range items {
-		repoMedia[i] = s.makeMedia(item)
+		repoMedia[i] = s.makeMedia(item, imageMode)
 	}
 
 	res := v1.GetRepoMediaOKApplicationJSON(repoMedia)
@@ -89,7 +94,7 @@ func (s *Server) GetRepoMediaById(_ context.Context, params v1.GetRepoMediaByIdP
 		return s.newError(v1.ErrorTypeNotFound, "media not found"), nil
 	}
 
-	m0 := s.makeMedia(m)
+	m0 := s.makeMedia(m, v1.ImageModeAll)
 	return &m0, nil
 }
 
@@ -118,7 +123,7 @@ func (s *Server) GetRepoMediaStream(ctx context.Context, params v1.GetRepoMediaS
 		}
 
 		var err error
-		m, err = rp.(repo.MuxingRepository).Remux(params.MediaId, format)
+		m, err = rp.Muxing().Remux(params.MediaId, format)
 		if err != nil {
 			return nil, err
 		}
@@ -167,13 +172,13 @@ func (s *Server) makeCapabilities(c repo.Capability) []v1.RepositoryCapability {
 	return caps
 }
 
-func (s *Server) makeMedia(m media.Media) v1.Media {
+func (s *Server) makeMedia(m media.Media, imageMode v1.ImageMode) v1.Media {
 	var (
 		repoMeta  = m.Meta()
 		mediaMeta v1.NilMediaMeta
 	)
 	if repoMeta != nil {
-		mediaMeta.SetTo(s.makeMediaMetadata(repoMeta))
+		mediaMeta.SetTo(s.makeMediaMetadata(repoMeta, imageMode))
 	} else {
 		mediaMeta.SetToNull()
 	}
@@ -184,23 +189,23 @@ func (s *Server) makeMedia(m media.Media) v1.Media {
 	}
 }
 
-func (s *Server) makeMediaMetadata(m meta.Metadata) v1.MediaMeta {
+func (s *Server) makeMediaMetadata(m meta.Metadata, imageMode v1.ImageMode) v1.MediaMeta {
 	mm := v1.MediaMeta{}
 
 	switch metaVariant := m.(type) {
 	case meta.EpisodeMetadata:
-		mm.SetEpisodeMetadata(s.makeEpisodeMetadata(metaVariant))
+		mm.SetEpisodeMetadata(s.makeEpisodeMetadata(metaVariant, imageMode))
 	case meta.MovieOrSeriesMetadata:
 		switch metaVariant.Type() {
 		case meta.TypeMovie:
-			mm.SetMovieMetadata(s.makeMovieMetadata(metaVariant))
+			mm.SetMovieMetadata(s.makeMovieMetadata(metaVariant, imageMode))
 		case meta.TypeSeries:
-			mm.SetSeriesMetadata(s.makeSeriesMetadata(metaVariant))
+			mm.SetSeriesMetadata(s.makeSeriesMetadata(metaVariant, imageMode))
 		default: // the metadata instance is breaking its contract, just force it to be generic
-			mm.SetMetadata(s.makeMetadata(metaVariant))
+			mm.SetMetadata(s.makeMetadata(metaVariant, imageMode))
 		}
 	default:
-		mm.SetMetadata(s.makeMetadata(metaVariant))
+		mm.SetMetadata(s.makeMetadata(metaVariant, imageMode))
 	}
 
 	return mm
@@ -215,22 +220,26 @@ func newNilString(v string) v1.NilString {
 	return s
 }
 
-func (s *Server) makeMovieMetadata(m meta.MovieOrSeriesMetadata) v1.MovieMetadata {
+func (s *Server) makeMovieMetadata(m meta.MovieOrSeriesMetadata, imageMode v1.ImageMode) v1.MovieMetadata {
 	return v1.MovieMetadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.makeImages(m.Images()),
+		Images:        s.makeImages(m.Images(), imageMode),
 		Genres:        m.Genres(),
-		Cast:          s.makeCastMembers(m.Cast()),
+		Cast:          s.makeCastMembers(m.Cast(), imageMode),
 		Languages:     s.makeLanguages(m.Languages()),
 		Countries:     s.makeCountries(m.Countries()),
 	}
 }
 
-func (s *Server) makeImages(ims []meta.Image) []v1.Image {
+func (s *Server) makeImages(ims []meta.Image, imageMode v1.ImageMode) []v1.Image {
+	if imageMode == v1.ImageModeNone {
+		return nil
+	}
+
 	var images []v1.Image
 	for _, i := range ims {
 		im, err := s.makeImage(i)
@@ -243,6 +252,10 @@ func (s *Server) makeImages(ims []meta.Image) []v1.Image {
 				zap.Error(err),
 			)
 			continue
+		}
+
+		if imageMode == v1.ImageModeBasic && (im.Type == v1.ImageTypeAvatar || im.Type == v1.ImageTypeStill) {
+			continue // basic only sends backdrops and posters
 		}
 
 		images = append(images, im)
@@ -295,7 +308,7 @@ func (s *Server) makeImage(i meta.Image) (v1.Image, error) {
 	}, nil
 }
 
-func (s *Server) makeCastMembers(cms []meta.CastMember) []v1.CastMember {
+func (s *Server) makeCastMembers(cms []meta.CastMember, imageMode v1.ImageMode) []v1.CastMember {
 	if cms == nil {
 		return nil
 	}
@@ -306,7 +319,7 @@ func (s *Server) makeCastMembers(cms []meta.CastMember) []v1.CastMember {
 			image  = cm.Image()
 			image0 v1.OptImage
 		)
-		if image != nil {
+		if image != nil && imageMode == v1.ImageModeAll {
 			im, err := s.makeImage(image)
 			if err == nil {
 				image0.SetTo(im)
@@ -357,42 +370,42 @@ func (s *Server) makeCountries(rgs []language.Region) []string {
 	return regions
 }
 
-func (s *Server) makeSeriesMetadata(m meta.MovieOrSeriesMetadata) v1.SeriesMetadata {
+func (s *Server) makeSeriesMetadata(m meta.MovieOrSeriesMetadata, imageMode v1.ImageMode) v1.SeriesMetadata {
 	return v1.SeriesMetadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.makeImages(m.Images()),
+		Images:        s.makeImages(m.Images(), imageMode),
 		Genres:        m.Genres(),
-		Cast:          s.makeCastMembers(m.Cast()),
+		Cast:          s.makeCastMembers(m.Cast(), imageMode),
 		Languages:     s.makeLanguages(m.Languages()),
 		Countries:     s.makeCountries(m.Countries()),
 	}
 }
 
-func (s *Server) makeEpisodeMetadata(m meta.EpisodeMetadata) v1.EpisodeMetadata {
+func (s *Server) makeEpisodeMetadata(m meta.EpisodeMetadata, imageMode v1.ImageMode) v1.EpisodeMetadata {
 	return v1.EpisodeMetadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.makeImages(m.Images()),
-		Series:        s.makeSeriesMetadata(m.Series()),
+		Images:        s.makeImages(m.Images(), imageMode),
+		Series:        s.makeSeriesMetadata(m.Series(), imageMode),
 		Season:        m.Season(),
 		Episode:       m.Episode(),
 	}
 }
 
-func (s *Server) makeMetadata(m meta.Metadata) v1.Metadata {
+func (s *Server) makeMetadata(m meta.Metadata, imageMode v1.ImageMode) v1.Metadata {
 	return v1.Metadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.makeImages(m.Images()),
+		Images:        s.makeImages(m.Images(), imageMode),
 	}
 }

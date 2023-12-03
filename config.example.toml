@@ -2,8 +2,9 @@
 host = ":8000"
 
 [repos.test]
-watch = true
 path = "./test-repo"
 index_path = "./test-repo/.katana/index.json"
+mux_cache_path = "./test-repo/.katana/mux_cache"
+capabilities = ["watch"]
 
 [repos.test.sources.analysis.literal]

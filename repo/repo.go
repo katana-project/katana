@@ -34,10 +34,10 @@ const (
 	// CapabilityIndex is a flag of a repository that is able to persist its contents.
 	CapabilityIndex
 	// CapabilityRemux is a flag of a repository that is able to remux media.
-	// A repository with this flag can be safely type asserted to be MuxingRepository.
+	// A repository with this flag can be safely asserted (Repository.Muxing) to be MuxingRepository.
 	CapabilityRemux
 	// CapabilityTranscode is a flag of a repository that is able to transcode media.
-	// A repository with this flag can be safely type asserted to be MuxingRepository.
+	// A repository with this flag can be safely asserted (Repository.Muxing) to be MuxingRepository.
 	CapabilityTranscode
 )
 
@@ -77,6 +77,9 @@ type Repository interface {
 	// Close cleans up residual data after the repository.
 	// The repository should not be used any further after calling Close.
 	Close() error
+
+	// Muxing tries to assert this repository to a MuxingRepository, returns nil if not possible.
+	Muxing() MuxingRepository
 }
 
 // MuxingRepository is a repository capable of remuxing and transcoding operations.
@@ -425,5 +428,9 @@ func (cr *crudRepository) Source() meta.Source {
 }
 
 func (cr *crudRepository) Close() error {
+	return nil
+}
+
+func (cr *crudRepository) Muxing() MuxingRepository {
 	return nil
 }

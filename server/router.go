@@ -8,6 +8,7 @@ import (
 	"github.com/katana-project/katana/config"
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media/meta"
+	"github.com/katana-project/katana/repo/mux"
 	"github.com/katana-project/katana/server/v1"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
@@ -38,7 +39,7 @@ func NewRouter(repos []repo.Repository, logger *zap.Logger) (http.Handler, error
 			MaxAge:           300,
 		}))
 
-		r.Mount("/v1", v1Srv)
+		r.Mount("/v1", http.StripPrefix("/api", v1Srv))
 	})
 
 	return r, nil
@@ -57,7 +58,7 @@ func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (http.Handler, 
 
 		metaSources := make([]meta.Source, 0, len(repoConfig.Sources))
 		for sourceName, options := range repoConfig.Sources {
-			ms, err := NewConfiguredMetaSource(sourceName, options)
+			ms, err := NewConfiguredMetaSource(string(sourceName), options)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to configure metadata source")
 			}
@@ -85,14 +86,21 @@ func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (http.Handler, 
 			return nil, errors.Wrap(err, "failed to create repository")
 		}
 
-		if repoConfig.IndexPath != "" {
+		if repoConfig.MuxCachePath != "" { // zero value
+			r, err = mux.NewRepository(r, repoConfig.MuxCachePath, repoConfig.Capable(config.CapabilityTranscode))
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to create mux repository")
+			}
+		}
+
+		if repoConfig.IndexPath != "" { // zero value
 			r, err = repo.NewIndexedRepository(r, repoConfig.IndexPath, logger)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create indexed repository")
 			}
 		}
 
-		if repoConfig.Watch {
+		if repoConfig.Capable(config.CapabilityWatch) {
 			r, err = repo.NewWatchedRepository(r, logger)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create watched repository")
