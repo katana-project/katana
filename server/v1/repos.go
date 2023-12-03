@@ -1,4 +1,4 @@
-package server
+package v1
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/katana/repo/media/meta"
-	"github.com/katana-project/katana/server/api"
+	"github.com/katana-project/katana/server/api/v1"
 	"go.uber.org/zap"
 	"golang.org/x/text/language"
 	"net/http"
@@ -27,8 +27,8 @@ var imageCacheExp = imcache.WithExpiration(5 * time.Minute)
 // Lists all repositories currently known to the server.
 //
 // GET /repos
-func (s *Server) GetRepos(_ context.Context) ([]api.Repository, error) {
-	repos := make([]api.Repository, 0, len(s.repos))
+func (s *Server) GetRepos(_ context.Context) ([]v1.Repository, error) {
+	repos := make([]v1.Repository, 0, len(s.repos))
 	for _, r := range s.repos {
 		repos = append(repos, s.makeRepository(r))
 	}
@@ -41,13 +41,13 @@ func (s *Server) GetRepos(_ context.Context) ([]api.Repository, error) {
 // Gets a repository by its ID.
 //
 // GET /repos/{id}
-func (s *Server) GetRepoById(_ context.Context, params api.GetRepoByIdParams) (api.GetRepoByIdRes, error) {
+func (s *Server) GetRepoById(_ context.Context, params v1.GetRepoByIdParams) (v1.GetRepoByIdRes, error) {
 	if r, ok := s.repos[params.ID]; ok {
 		r0 := s.makeRepository(r)
 		return &r0, nil
 	}
 
-	return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
+	return s.newError(v1.ErrorTypeNotFound, "repository not found"), nil
 }
 
 // GetRepoMedia implements getRepoMedia operation.
@@ -55,21 +55,21 @@ func (s *Server) GetRepoById(_ context.Context, params api.GetRepoByIdParams) (a
 // Gets a repository by its ID and lists its media.
 //
 // GET /repos/{id}/media
-func (s *Server) GetRepoMedia(_ context.Context, params api.GetRepoMediaParams) (api.GetRepoMediaRes, error) {
+func (s *Server) GetRepoMedia(_ context.Context, params v1.GetRepoMediaParams) (v1.GetRepoMediaRes, error) {
 	r, ok := s.repos[params.ID]
 	if !ok {
-		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
+		return s.newError(v1.ErrorTypeNotFound, "repository not found"), nil
 	}
 
 	var (
 		items     = r.Items()
-		repoMedia = make([]api.Media, len(items))
+		repoMedia = make([]v1.Media, len(items))
 	)
 	for i, item := range items {
 		repoMedia[i] = s.makeMedia(item)
 	}
 
-	res := api.GetRepoMediaOKApplicationJSON(repoMedia)
+	res := v1.GetRepoMediaOKApplicationJSON(repoMedia)
 	return &res, nil
 }
 
@@ -78,15 +78,15 @@ func (s *Server) GetRepoMedia(_ context.Context, params api.GetRepoMediaParams) 
 // Gets media by its ID in a repository.
 //
 // GET /repos/{repoId}/media/{mediaId}
-func (s *Server) GetRepoMediaById(_ context.Context, params api.GetRepoMediaByIdParams) (api.GetRepoMediaByIdRes, error) {
+func (s *Server) GetRepoMediaById(_ context.Context, params v1.GetRepoMediaByIdParams) (v1.GetRepoMediaByIdRes, error) {
 	r, ok := s.repos[params.RepoId]
 	if !ok {
-		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
+		return s.newError(v1.ErrorTypeNotFound, "repository not found"), nil
 	}
 
 	m := r.Get(params.MediaId)
 	if m == nil {
-		return s.newError(api.ErrorTypeNotFound, "media not found"), nil
+		return s.newError(v1.ErrorTypeNotFound, "media not found"), nil
 	}
 
 	m0 := s.makeMedia(m)
@@ -98,10 +98,10 @@ func (s *Server) GetRepoMediaById(_ context.Context, params api.GetRepoMediaById
 // Gets media by its ID in a repository and returns an HTTP media stream of the file.
 //
 // GET /repos/{repoId}/media/{mediaId}/stream/{format}
-func (s *Server) GetRepoMediaStream(ctx context.Context, params api.GetRepoMediaStreamParams) (api.GetRepoMediaStreamRes, error) {
+func (s *Server) GetRepoMediaStream(ctx context.Context, params v1.GetRepoMediaStreamParams) (v1.GetRepoMediaStreamRes, error) {
 	rp, ok := s.repos[params.RepoId]
 	if !ok {
-		return s.newError(api.ErrorTypeNotFound, "repository not found"), nil
+		return s.newError(v1.ErrorTypeNotFound, "repository not found"), nil
 	}
 
 	var m media.Media
@@ -109,12 +109,12 @@ func (s *Server) GetRepoMediaStream(ctx context.Context, params api.GetRepoMedia
 		m = rp.Get(params.MediaId)
 	} else {
 		if !rp.Capabilities().Has(repo.CapabilityRemux) {
-			return s.newError(api.ErrorTypeMissingCapability, "missing 'remux' capability"), nil
+			return s.newError(v1.ErrorTypeMissingCapability, "missing 'remux' capability"), nil
 		}
 
 		format := media.FindFormat(string(params.Format))
 		if format == nil {
-			return s.newError(api.ErrorTypeUnknownFormat, fmt.Sprintf("unknown format '%s'", params.Format)), nil
+			return s.newError(v1.ErrorTypeUnknownFormat, fmt.Sprintf("unknown format '%s'", params.Format)), nil
 		}
 
 		var err error
@@ -125,13 +125,13 @@ func (s *Server) GetRepoMediaStream(ctx context.Context, params api.GetRepoMedia
 	}
 
 	if m == nil {
-		return s.newError(api.ErrorTypeNotFound, "media not found"), nil
+		return s.newError(v1.ErrorTypeNotFound, "media not found"), nil
 	}
 
 	// takeover with http.ServeFile
 	var (
-		w = ctx.Value(api.WriterCtxKey).(http.ResponseWriter)
-		r = ctx.Value(api.RequestCtxKey).(*http.Request)
+		w = ctx.Value(v1.WriterCtxKey).(http.ResponseWriter)
+		r = ctx.Value(v1.RequestCtxKey).(*http.Request)
 	)
 
 	w.Header().Set("Content-Type", m.MIME())
@@ -141,36 +141,36 @@ func (s *Server) GetRepoMediaStream(ctx context.Context, params api.GetRepoMedia
 	return nil, nil
 }
 
-func (s *Server) makeRepository(r repo.Repository) api.Repository {
-	return api.Repository{
+func (s *Server) makeRepository(r repo.Repository) v1.Repository {
+	return v1.Repository{
 		ID:           r.ID(),
 		Name:         r.Name(),
 		Capabilities: s.makeCapabilities(r.Capabilities()),
 	}
 }
 
-func (s *Server) makeCapabilities(c repo.Capability) []api.RepositoryCapability {
-	var caps []api.RepositoryCapability
+func (s *Server) makeCapabilities(c repo.Capability) []v1.RepositoryCapability {
+	var caps []v1.RepositoryCapability
 	if c.Has(repo.CapabilityWatch) {
-		caps = append(caps, api.RepositoryCapabilityWatch)
+		caps = append(caps, v1.RepositoryCapabilityWatch)
 	}
 	if c.Has(repo.CapabilityIndex) {
-		caps = append(caps, api.RepositoryCapabilityIndex)
+		caps = append(caps, v1.RepositoryCapabilityIndex)
 	}
 	if c.Has(repo.CapabilityRemux) {
-		caps = append(caps, api.RepositoryCapabilityRemux)
+		caps = append(caps, v1.RepositoryCapabilityRemux)
 	}
 	if c.Has(repo.CapabilityTranscode) {
-		caps = append(caps, api.RepositoryCapabilityTranscode)
+		caps = append(caps, v1.RepositoryCapabilityTranscode)
 	}
 
 	return caps
 }
 
-func (s *Server) makeMedia(m media.Media) api.Media {
+func (s *Server) makeMedia(m media.Media) v1.Media {
 	var (
 		repoMeta  = m.Meta()
-		mediaMeta api.NilMediaMeta
+		mediaMeta v1.NilMediaMeta
 	)
 	if repoMeta != nil {
 		mediaMeta.SetTo(s.makeMediaMetadata(repoMeta))
@@ -178,14 +178,14 @@ func (s *Server) makeMedia(m media.Media) api.Media {
 		mediaMeta.SetToNull()
 	}
 
-	return api.Media{
+	return v1.Media{
 		ID:   m.ID(),
 		Meta: mediaMeta,
 	}
 }
 
-func (s *Server) makeMediaMetadata(m meta.Metadata) api.MediaMeta {
-	mm := api.MediaMeta{}
+func (s *Server) makeMediaMetadata(m meta.Metadata) v1.MediaMeta {
+	mm := v1.MediaMeta{}
 
 	switch metaVariant := m.(type) {
 	case meta.EpisodeMetadata:
@@ -206,8 +206,8 @@ func (s *Server) makeMediaMetadata(m meta.Metadata) api.MediaMeta {
 	return mm
 }
 
-func newNilString(v string) api.NilString {
-	s := api.NewNilString(v)
+func newNilString(v string) v1.NilString {
+	s := v1.NewNilString(v)
 	if v0, ok := s.Get(); ok && v0 == "" { // convert zero value to nil
 		s.SetToNull()
 	}
@@ -215,8 +215,8 @@ func newNilString(v string) api.NilString {
 	return s
 }
 
-func (s *Server) makeMovieMetadata(m meta.MovieOrSeriesMetadata) api.MovieMetadata {
-	return api.MovieMetadata{
+func (s *Server) makeMovieMetadata(m meta.MovieOrSeriesMetadata) v1.MovieMetadata {
+	return v1.MovieMetadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
@@ -230,8 +230,8 @@ func (s *Server) makeMovieMetadata(m meta.MovieOrSeriesMetadata) api.MovieMetada
 	}
 }
 
-func (s *Server) makeImages(ims []meta.Image) []api.Image {
-	var images []api.Image
+func (s *Server) makeImages(ims []meta.Image) []v1.Image {
+	var images []v1.Image
 	for _, i := range ims {
 		im, err := s.makeImage(i)
 		if err != nil {
@@ -251,7 +251,7 @@ func (s *Server) makeImages(ims []meta.Image) []api.Image {
 	return images
 }
 
-func (s *Server) makeImage(i meta.Image) (api.Image, error) {
+func (s *Server) makeImage(i meta.Image) (v1.Image, error) {
 	var (
 		path   = i.Path()
 		remote = i.Remote()
@@ -262,7 +262,7 @@ func (s *Server) makeImage(i meta.Image) (api.Image, error) {
 		} else {
 			b, err := os.ReadFile(path)
 			if err != nil {
-				return api.Image{}, err
+				return v1.Image{}, err
 			}
 
 			data := fmt.Sprintf(
@@ -275,19 +275,19 @@ func (s *Server) makeImage(i meta.Image) (api.Image, error) {
 		}
 	}
 
-	type_ := api.ImageTypeUnknown
+	type_ := v1.ImageTypeUnknown
 	switch i.Type() {
 	case meta.ImageTypeStill:
-		type_ = api.ImageTypeStill
+		type_ = v1.ImageTypeStill
 	case meta.ImageTypeBackdrop:
-		type_ = api.ImageTypeBackdrop
+		type_ = v1.ImageTypeBackdrop
 	case meta.ImageTypePoster:
-		type_ = api.ImageTypePoster
+		type_ = v1.ImageTypePoster
 	case meta.ImageTypeAvatar:
-		type_ = api.ImageTypeAvatar
+		type_ = v1.ImageTypeAvatar
 	}
 
-	return api.Image{
+	return v1.Image{
 		Type:        type_,
 		Path:        path,
 		Remote:      remote,
@@ -295,16 +295,16 @@ func (s *Server) makeImage(i meta.Image) (api.Image, error) {
 	}, nil
 }
 
-func (s *Server) makeCastMembers(cms []meta.CastMember) []api.CastMember {
+func (s *Server) makeCastMembers(cms []meta.CastMember) []v1.CastMember {
 	if cms == nil {
 		return nil
 	}
 
-	castMembers := make([]api.CastMember, len(cms))
+	castMembers := make([]v1.CastMember, len(cms))
 	for i, cm := range cms {
 		var (
 			image  = cm.Image()
-			image0 api.OptImage
+			image0 v1.OptImage
 		)
 		if image != nil {
 			im, err := s.makeImage(image)
@@ -321,7 +321,7 @@ func (s *Server) makeCastMembers(cms []meta.CastMember) []api.CastMember {
 			}
 		}
 
-		castMembers[i] = api.CastMember{
+		castMembers[i] = v1.CastMember{
 			Name:  cm.Name(),
 			Role:  cm.Role(),
 			Image: image0,
@@ -357,8 +357,8 @@ func (s *Server) makeCountries(rgs []language.Region) []string {
 	return regions
 }
 
-func (s *Server) makeSeriesMetadata(m meta.MovieOrSeriesMetadata) api.SeriesMetadata {
-	return api.SeriesMetadata{
+func (s *Server) makeSeriesMetadata(m meta.MovieOrSeriesMetadata) v1.SeriesMetadata {
+	return v1.SeriesMetadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
@@ -372,8 +372,8 @@ func (s *Server) makeSeriesMetadata(m meta.MovieOrSeriesMetadata) api.SeriesMeta
 	}
 }
 
-func (s *Server) makeEpisodeMetadata(m meta.EpisodeMetadata) api.EpisodeMetadata {
-	return api.EpisodeMetadata{
+func (s *Server) makeEpisodeMetadata(m meta.EpisodeMetadata) v1.EpisodeMetadata {
+	return v1.EpisodeMetadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),
@@ -386,8 +386,8 @@ func (s *Server) makeEpisodeMetadata(m meta.EpisodeMetadata) api.EpisodeMetadata
 	}
 }
 
-func (s *Server) makeMetadata(m meta.Metadata) api.Metadata {
-	return api.Metadata{
+func (s *Server) makeMetadata(m meta.Metadata) v1.Metadata {
+	return v1.Metadata{
 		Title:         m.Title(),
 		OriginalTitle: newNilString(m.OriginalTitle()),
 		Overview:      newNilString(m.Overview()),

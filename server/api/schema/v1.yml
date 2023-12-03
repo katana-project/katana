@@ -8,6 +8,9 @@ info:
     url: https://github.com/katana-project
     email: root@katana-project.org
 
+servers:
+  - url: /v1
+
 paths:
   /repos:
     get:
@@ -69,6 +72,13 @@ paths:
           schema:
             type: string
             pattern: ^[a-z0-9-_]+$
+        - in: query
+          name: images
+          description: The image fetching mode.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ImageMode'
+            default: none
       responses:
         '200':
           description: Successful response
@@ -196,12 +206,6 @@ components:
         description:
           type: string
           description: The error description.
-    MediaFormat:
-      type: string
-      enum:
-        - raw
-        - mp4
-        - mkv
     RepositoryCapability:
       type: string
       enum:
@@ -244,7 +248,6 @@ components:
         - overview
         - release_date
         - vote_rating
-        - images
       properties:
         type:
           $ref: '#/components/schemas/MetadataType'
@@ -274,6 +277,12 @@ components:
           description: The promotional images of the media.
           items:
             $ref: '#/components/schemas/Image'
+    ImageMode:
+      type: string
+      enum:
+        - none
+        - basic
+        - all
     ImageType:
       type: string
       enum:
@@ -308,7 +317,6 @@ components:
       required:
         - name
         - role
-        # - image
       properties:
         name:
           type: string
@@ -319,7 +327,6 @@ components:
         image:
           $ref: '#/components/schemas/Image'
           description: The image of the cast member.
-          # nullable: true - doesn't work with ogen, non-required for now
     MovieMetadata:
       allOf:
         - $ref: '#/components/schemas/Metadata'
@@ -400,6 +407,12 @@ components:
               type: integer
               description: The episode number.
               min: 0
+    MediaFormat:
+      type: string
+      enum:
+        - raw
+        - mp4
+        - mkv
     Media:
       type: object
       required:
