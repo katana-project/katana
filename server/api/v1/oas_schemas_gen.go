@@ -255,7 +255,7 @@ type GetRepoMediaOKApplicationJSON []Media
 func (*GetRepoMediaOKApplicationJSON) getRepoMediaRes() {}
 
 type GetRepoMediaStreamOK struct {
-	Data io.ReadCloser
+	Data io.Reader
 }
 
 // Read reads data from the Data reader.
@@ -266,16 +266,6 @@ func (s GetRepoMediaStreamOK) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	return s.Data.Read(p)
-}
-
-// Close closes the Data reader.
-//
-// Kept to satisfy the io.Closer interface.
-func (s GetRepoMediaStreamOK) Close() error {
-	if s.Data == nil {
-		return nil
-	}
-	return s.Data.Close()
 }
 
 // GetRepoMediaStreamOKHeaders wraps GetRepoMediaStreamOK with response headers.

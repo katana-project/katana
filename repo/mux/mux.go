@@ -283,6 +283,10 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 	pkt := mux.NewPacket()
 	defer pkt.Close()
 
+	if err := outCtx.WriteHeader(); err != nil {
+		return errors.Wrap(err, "failed to write header")
+	}
+
 	for {
 		err = inCtx.ReadFrame(pkt)
 		if err != nil {
@@ -315,7 +319,11 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 			}
 		}
 	}
-	if err == io.EOF {
+	if err == nil || err == io.EOF {
+		if err := outCtx.WriteEnd(); err != nil {
+			return errors.Wrap(err, "failed to write end")
+		}
+
 		return nil
 	}
 

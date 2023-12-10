@@ -36,6 +36,8 @@ github.com/katana-project/mux v0.0.0-20231204175632-f0ea38cf74f9 h1:6l6Yrq9CJ6xw
 github.com/katana-project/mux v0.0.0-20231204175632-f0ea38cf74f9/go.mod h1:aoynxJgiKyLIbCpKPHir94pfy8seWyxVPAbWughHEF0=
 github.com/katana-project/mux v0.0.0-20231204182401-46dbbb1761f4 h1:lB8OMvi3rOTScN1iosMryxUjEiqE2dsQ5plrXIT/6LQ=
 github.com/katana-project/mux v0.0.0-20231204182401-46dbbb1761f4/go.mod h1:aoynxJgiKyLIbCpKPHir94pfy8seWyxVPAbWughHEF0=
+github.com/katana-project/mux v0.0.0-20231210134354-26466dcf27e3 h1:X80eET/GV5kByUEcUxRl+jWgenqTakO+MDwSpQdqSkI=
+github.com/katana-project/mux v0.0.0-20231210134354-26466dcf27e3/go.mod h1:aoynxJgiKyLIbCpKPHir94pfy8seWyxVPAbWughHEF0=
 github.com/katana-project/tmdb v0.0.0-20231116170353-456b0d7a8b32 h1:8BAvAPcn90jdZn62W2CRmuOngwglcSzxWlSh/iSHC0Y=
 github.com/katana-project/tmdb v0.0.0-20231116170353-456b0d7a8b32/go.mod h1:EcT2iultpcgWU+ZuhXIuy42h1puTjesi7OumErhHEe8=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
@@ -51,6 +53,8 @@ github.com/ogen-go/ogen v0.78.0 h1:3OIlrvdmVQ4LfoayxbdyLa4cGbtrACW0XxpdRfYzQfs=
 github.com/ogen-go/ogen v0.78.0/go.mod h1:xc4jgbzGEEMvnVumt1uBMP9HQNV45UMs3SjAukxxo8I=
 github.com/ogen-go/ogen v0.79.1 h1:36BC2UOcd11kUmFpa+rRM6FA5PrNiTxS5j0bci2ynk0=
 github.com/ogen-go/ogen v0.79.1/go.mod h1:e5C5vCATb/9JqS1Q4qFWpsqUHKcIDh8D/ah0tqHOt7M=
+github.com/ogen-go/ogen v0.80.1 h1:hpEokvnrV+eZYXSioJPpQO4J0n9OnS+TrssBhhNjA+A=
+github.com/ogen-go/ogen v0.80.1/go.mod h1:e5C5vCATb/9JqS1Q4qFWpsqUHKcIDh8D/ah0tqHOt7M=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
@@ -75,6 +79,8 @@ golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa h1:FRnLl4eNAQl8hwxVVC17teOw8
 golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa/go.mod h1:zk2irFbV9DP96SEBUUAy67IdHUaZuSnrz1n472HUCLE=
 golang.org/x/exp v0.0.0-20231127185646-65229373498e h1:Gvh4YaCaXNs6dKTlfgismwWZKyjVZXwOPfIyUaqU3No=
 golang.org/x/exp v0.0.0-20231127185646-65229373498e/go.mod h1:iRJReGqOEeBhDZGkGbynYwcHlctCvnjTYIamk7uXpHI=
+golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb h1:c0vyKkb6yr3KR7jEfJaOSv4lG7xPkbN6r52aJz1d8a8=
+golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb/go.mod h1:iRJReGqOEeBhDZGkGbynYwcHlctCvnjTYIamk7uXpHI=
 golang.org/x/net v0.18.0 h1:mIYleuAkSbHh0tCv7RvjL3F6ZVbLjq4+R7zbOn3Kokg=
 golang.org/x/net v0.18.0/go.mod h1:/czyP5RqHAH4odGYxBJ1qz0+CE5WZ+2j1YgoEo8F2jQ=
 golang.org/x/net v0.19.0 h1:zTwKpTd2XuCqf8huc7Fo2iSy+4RHPd10s4KzeTnVr1c=

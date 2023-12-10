@@ -12,14 +12,14 @@ require (
 	github.com/go-faster/errors v0.7.0
 	github.com/go-faster/jx v1.1.0
 	github.com/katana-project/ffmpeg v0.0.0-20231126124327-2d1a6344442d
-	github.com/katana-project/mux v0.0.0-20231204182401-46dbbb1761f4
+	github.com/katana-project/mux v0.0.0-20231210134354-26466dcf27e3
 	github.com/katana-project/tmdb v0.0.0-20231116170353-456b0d7a8b32
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/ogen-go/ogen v0.79.1
+	github.com/ogen-go/ogen v0.80.1
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.26.0
 	go.uber.org/zap v1.26.0
-	golang.org/x/exp v0.0.0-20231127185646-65229373498e
+	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
 	golang.org/x/text v0.14.0
 )
 

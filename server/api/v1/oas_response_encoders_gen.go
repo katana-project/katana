@@ -109,7 +109,6 @@ func encodeGetRepoMediaByIdResponse(response GetRepoMediaByIdRes, w http.Respons
 func encodeGetRepoMediaStreamResponse(response GetRepoMediaStreamRes, w http.ResponseWriter) error {
 	switch response := response.(type) {
 	case *GetRepoMediaStreamOKHeaders:
-		defer response.Response.Close()
 		w.Header().Set("Content-Type", "schema")
 		// Encoding response headers.
 		{

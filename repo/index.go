@@ -5,6 +5,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/repo/media"
 	"go.uber.org/zap"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -86,6 +87,16 @@ func (ir *indexedRepository) load() error {
 	repoPath := ir.Repository.Path()
 	for _, item := range ix.Items {
 		absItemPath := filepath.Join(repoPath, item.Path())
+		if _, err := os.Stat(absItemPath); errors.Is(err, fs.ErrNotExist) {
+			ir.logger.Warn(
+				"non-existent index item, skipping",
+				zap.String("repo", ir.Repository.ID()),
+				zap.String("repo_path", ir.Repository.Path()),
+				zap.String("index_path", ir.path),
+				zap.String("path", absItemPath),
+			)
+			continue
+		}
 
 		// un-hack the Media contract for code reuse - you're not supposed to have relative paths in there
 		absItem := media.NewBasicMedia(media.NewMedia(item.ID(), absItemPath, item.MIME(), item.Meta()))

@@ -50,7 +50,7 @@ func Capabilities(caps []config.Capability) Capability {
 		case config.CapabilityWatch:
 			c |= CapabilityWatch
 		case config.CapabilityRemux:
-			c |= CapabilityWatch
+			c |= CapabilityRemux
 		case config.CapabilityTranscode:
 			c |= CapabilityTranscode
 		}
@@ -313,6 +313,10 @@ func (cr *crudRepository) Find(path string) media.Media {
 }
 
 func (cr *crudRepository) add(id, path string, m media.Media) error {
+	if _, err := os.Stat(path); err != nil { // catches non-existent files
+		return errors.Wrap(err, "failed to stat file")
+	}
+
 	relPath, err := filepath.Rel(cr.path, path)
 	if err != nil {
 		return &ErrInvalidMediaPath{
