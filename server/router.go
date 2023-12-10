@@ -76,18 +76,13 @@ func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (http.Handler, 
 			metaSource = metaSources[0]
 		}
 
-		repoName := repoConfig.Name
-		if repoName == "" { // zero value
-			repoName = repoId
-		}
-
-		r, err := repo.NewRepository(repoId, repoName, repoConfig.Path, metaSource, logger)
+		r, err := repo.NewRepository(repoId, repoConfig.Name, repoConfig.Path, metaSource, logger)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create repository")
 		}
 
-		if repoConfig.MuxCachePath != "" { // zero value
-			r, err = mux.NewRepository(r, repoConfig.MuxCachePath, repoConfig.Capable(config.CapabilityTranscode))
+		if repoConfig.Capable(config.CapabilityRemux) || repoConfig.Capable(config.CapabilityTranscode) {
+			r, err = mux.NewRepository(r, repo.Capabilities(repoConfig.Capabilities), repoConfig.CachePath, logger)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create mux repository")
 			}

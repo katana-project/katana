@@ -10,6 +10,7 @@ import (
 	"github.com/katana-project/katana/repo/internal/sync"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/mux"
+	"go.uber.org/zap"
 	"io"
 	"io/fs"
 	"os"
@@ -17,27 +18,30 @@ import (
 	"strings"
 )
 
-// formats are a mapping of supported formats to their mux variants.
-var formats = make(map[*media.Format]*muxFormat)
+// capMask is the mask for the repository capability input.
+const capMask = repo.CapabilityRemux | repo.CapabilityTranscode
+
+// formats are the media.Formats mapped to their mux variants.
+var formats = make(map[*media.Format]*format)
 
 func init() {
-	avutil.SetLogLevel(avutil.LogError)
+	avutil.SetLogLevel(avutil.LogWarning)
 
-	for _, format := range media.Formats() {
+	for _, f := range media.Formats() {
 		var (
-			muxer   = mux.FindMuxer(format.Name, format.Extension, format.MIME)
-			demuxer = mux.FindDemuxer(format.Name, format.Extension, format.MIME)
+			muxer   = mux.FindMuxer(f.Name, f.Extension, f.MIME)
+			demuxer = mux.FindDemuxer(f.Name, f.Extension, f.MIME)
 		)
 		if muxer == nil && demuxer == nil {
 			continue // don't include missing formats
 		}
 
-		formats[format] = &muxFormat{muxer: muxer, demuxer: demuxer}
+		formats[f] = &format{muxer: muxer, demuxer: demuxer}
 	}
 }
 
-// muxFormat is a muxer + demuxer combination.
-type muxFormat struct {
+// format is a muxer + demuxer combination.
+type format struct {
 	muxer   *mux.Muxer
 	demuxer *mux.Demuxer
 }
@@ -46,9 +50,11 @@ type muxFormat struct {
 type muxRepository struct {
 	repo.Repository
 
-	path      string
-	remuxPath string
-	transcode bool
+	path                     string
+	remuxPath, transcodePath string
+
+	cap    repo.Capability
+	logger *zap.Logger
 
 	mu sync.KMutex
 }
@@ -57,8 +63,7 @@ type muxRepository struct {
 type relocatedMedia struct {
 	media.Media
 
-	path string
-	mime string
+	path, mime string
 }
 
 func (rm *relocatedMedia) Path() string {
@@ -70,7 +75,7 @@ func (rm *relocatedMedia) MIME() string {
 }
 
 // NewRepository creates a new mux-backed repo.MuxingRepository.
-func NewRepository(repo repo.Repository, path string, transcode bool) (repo.MuxingRepository, error) {
+func NewRepository(r repo.Repository, cap repo.Capability, path string, logger *zap.Logger) (repo.MuxingRepository, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -80,28 +85,39 @@ func NewRepository(repo repo.Repository, path string, transcode bool) (repo.Muxi
 		return nil, errors.Wrap(err, "failed to make directories")
 	}
 
-	remuxPath := filepath.Join(absPath, "remux")
-	if _, err := os.Stat(remuxPath); errors.Is(err, fs.ErrNotExist) {
-		if err := os.Mkdir(remuxPath, 0); err != nil {
-			return nil, errors.Wrap(err, "failed to make remux directory")
+	var (
+		remuxPath     string
+		transcodePath string
+	)
+	if cap.Has(repo.CapabilityRemux) {
+		remuxPath = filepath.Join(absPath, "remux")
+		if _, err := os.Stat(remuxPath); errors.Is(err, fs.ErrNotExist) {
+			if err := os.Mkdir(remuxPath, 0); err != nil {
+				return nil, errors.Wrap(err, "failed to make remux directory")
+			}
+		}
+	}
+	if cap.Has(repo.CapabilityTranscode) {
+		transcodePath = filepath.Join(absPath, "transcode")
+		if _, err := os.Stat(transcodePath); errors.Is(err, fs.ErrNotExist) {
+			if err := os.Mkdir(transcodePath, 0); err != nil {
+				return nil, errors.Wrap(err, "failed to make transcode directory")
+			}
 		}
 	}
 
 	return &muxRepository{
-		Repository: repo,
-		path:       absPath,
-		remuxPath:  remuxPath,
-		transcode:  transcode,
+		Repository:    r,
+		path:          absPath,
+		remuxPath:     remuxPath,
+		transcodePath: transcodePath,
+		cap:           cap & capMask,
+		logger:        logger,
 	}, nil
 }
 
 func (mr *muxRepository) Capabilities() repo.Capability {
-	c := mr.Repository.Capabilities() | repo.CapabilityRemux
-	if mr.transcode {
-		c |= repo.CapabilityTranscode
-	}
-
-	return c
+	return mr.Repository.Capabilities() | mr.cap
 }
 
 func (mr *muxRepository) Remove(m media.Media) error {
@@ -232,21 +248,36 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 	defer outCtx.Close()
 
 	var (
-		streamMapping   = make(map[int]int)
+		streams = inCtx.Streams()
+
+		streamMapping   = make([]int, len(streams))
 		lastStreamIndex = 0
 	)
-	for i, inStream := range inCtx.Streams() {
-		if !muxer.SupportsCodec(inStream.Codec()) { // codec not supported in container, strip
-			continue
+	for i, inStream := range streams {
+		var (
+			codec   = inStream.Codec()
+			remapId = -1
+		)
+		if muxer.SupportsCodec(codec) {
+			outStream := outCtx.NewStream(codec)
+			if err := inStream.CopyParameters(outStream); err != nil {
+				return errors.Wrapf(err, "failed to copy stream %d parameters", i)
+			}
+
+			remapId = lastStreamIndex
+			lastStreamIndex++
+		} else { // codec not supported in container, strip
+			mr.logger.Warn(
+				"skipping unsupported codec in stream",
+				zap.String("codec", codec.Name()),
+				zap.String("format", muxer.Name()),
+				zap.Int("stream", i),
+				zap.String("src", src),
+				zap.String("dst", dst),
+			)
 		}
 
-		outStream := outCtx.NewStream(nil)
-		if err := inStream.CopyParameters(outStream); err != nil {
-			return errors.Wrapf(err, "failed to copy stream %d parameters", i)
-		}
-
-		streamMapping[i] = lastStreamIndex
-		lastStreamIndex++
+		streamMapping[i] = remapId
 	}
 
 	pkt := mux.NewPacket()
@@ -263,12 +294,13 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 		}
 
 		streamIdx := pkt.StreamIndex()
-		if remapId, ok := streamMapping[streamIdx]; ok {
+		if remapId := streamMapping[streamIdx]; remapId >= 0 {
+			pkt.SetStreamIndex(remapId)
+
 			pkt.Rescale(
 				inCtx.Stream(streamIdx).TimeBase(),
 				outCtx.Stream(remapId).TimeBase(),
 			)
-			pkt.SetStreamIndex(remapId)
 			pkt.ResetPos()
 
 			if err := outCtx.WriteFrame(pkt); err != nil {
@@ -290,6 +322,6 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 	return err
 }
 
-func (mr *muxRepository) Muxing() repo.MuxingRepository {
+func (mr *muxRepository) Mux() repo.MuxingRepository {
 	return mr
 }

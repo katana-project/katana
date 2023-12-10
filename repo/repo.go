@@ -3,6 +3,7 @@ package repo
 import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/go-faster/errors"
+	"github.com/katana-project/katana/config"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/katana/repo/media/meta"
 	"go.uber.org/zap"
@@ -41,6 +42,23 @@ const (
 	CapabilityTranscode
 )
 
+// Capabilities translates capabilities from the configuration.
+func Capabilities(caps []config.Capability) Capability {
+	var c Capability
+	for _, capability := range caps {
+		switch capability {
+		case config.CapabilityWatch:
+			c |= CapabilityWatch
+		case config.CapabilityRemux:
+			c |= CapabilityWatch
+		case config.CapabilityTranscode:
+			c |= CapabilityTranscode
+		}
+	}
+
+	return c
+}
+
 // Has checks whether a Capability can be addressed from this one.
 func (rc Capability) Has(flag Capability) bool {
 	return (rc & flag) != 0
@@ -78,8 +96,8 @@ type Repository interface {
 	// The repository should not be used any further after calling Close.
 	Close() error
 
-	// Muxing tries to assert this repository to a MuxingRepository, returns nil if not possible.
-	Muxing() MuxingRepository
+	// Mux tries to assert this repository to a MuxingRepository, returns nil if not possible.
+	Mux() MuxingRepository
 }
 
 // MuxingRepository is a repository capable of remuxing and transcoding operations.
@@ -431,6 +449,6 @@ func (cr *crudRepository) Close() error {
 	return nil
 }
 
-func (cr *crudRepository) Muxing() MuxingRepository {
+func (cr *crudRepository) Mux() MuxingRepository {
 	return nil
 }

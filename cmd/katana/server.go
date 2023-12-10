@@ -13,7 +13,7 @@ import (
 
 // handleServer handles the server sub-command.
 func (ac *appContext) handleServer(cCtx *cli.Context) error {
-	cfg, err := config.Parse(cCtx.String("config"))
+	cfg, err := config.ParseWithDefaults(cCtx.String("config"))
 	if err != nil {
 		return errors.Wrap(err, "failed to load config")
 	}

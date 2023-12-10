@@ -24,34 +24,67 @@ type Capability string
 const (
 	// CapabilityWatch is the filesystem watch capability ID.
 	CapabilityWatch Capability = "watch"
+	// CapabilityRemux is the remux capability ID.
+	CapabilityRemux Capability = "remux"
 	// CapabilityTranscode is the transcode capability ID.
 	CapabilityTranscode Capability = "transcode"
 )
 
+// Section is a section of the configuration file.
+// T is always going to be the type of this section.
+type Section[T any] interface {
+	// Defaults completes the section with default values, set values are not replaced.
+	Defaults() T
+}
+
 // Config is a struct representation of the TOML configuration file.
 type Config struct {
 	// HTTP is the "http" configuration section.
-	HTTP HTTP `toml:"http"`
+	HTTP *HTTP `toml:"http"`
 	// Repos is the collection of repository configuration, keyed by their ID.
 	Repos map[string]*Repo `toml:"repos"`
 }
 
+// Defaults completes the configuration with default values.
+func (c *Config) Defaults() *Config {
+	c.HTTP = c.HTTP.Defaults()
+	for k, v := range c.Repos {
+		def := v.Defaults()
+		if def.Name == "" {
+			def.Name = k
+		}
+
+		c.Repos[k] = def
+	}
+
+	return c
+}
+
 // HTTP is an HTTP configuration section of the configuration file.
 type HTTP struct {
-	// Host is the host string, used for http.ListenAndServe.
+	// Host is the host string, used for http.ListenAndServe, defaults to ":8000".
 	Host string `toml:"host"`
+}
+
+// Defaults completes the section with default values.
+func (h *HTTP) Defaults() *HTTP {
+	if h.Host == "" {
+		h.Host = ":8000"
+	}
+
+	return h
 }
 
 // Repo is a base repository configuration.
 type Repo struct {
-	// ID is the name of the repository, can be empty.
+	// Name is the name of the repository, defaults to the repository ID.
 	Name string `toml:"name"`
 	// Path is the relative or absolute path of the repository's directory.
 	Path string `toml:"path"`
 	// Path is the relative or absolute path of the repository's index file, can be empty.
 	IndexPath string `toml:"index_path"`
-	// MuxCachePath is the relative or absolute path of the repository's remux and transcode cache, can be empty.
-	MuxCachePath string `toml:"mux_cache_path"`
+	// CachePath is the relative or absolute path of the repository's operation cache, defaults to <path>/.katana/cache.
+	CachePath string `toml:"cache_path"`
 	// Capabilities are the capability IDs of the repository.
 	Capabilities []Capability `toml:"capabilities"`
 	// Sources is a mapping of used metadata sources and their configuration, keyed by their name.
@@ -63,6 +96,15 @@ func (r *Repo) Capable(c Capability) bool {
 	return slices.Contains(r.Capabilities, c)
 }
 
+// Defaults completes the section with default values.
+func (r *Repo) Defaults() *Repo {
+	if r.CachePath == "" {
+		r.CachePath = filepath.Join(r.Path, ".katana", "cache")
+	}
+
+	return r
+}
+
 // Parse parses the configuration from a file.
 func Parse(path string) (*Config, error) {
 	var cfg Config
@@ -71,4 +113,14 @@ func Parse(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// ParseWithDefaults parses the configuration from a file and completes it with default values (Section.Defaults).
+func ParseWithDefaults(path string) (*Config, error) {
+	cfg, err := Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg.Defaults(), nil
 }

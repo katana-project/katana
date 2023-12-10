@@ -110,7 +110,7 @@ func (s *Server) GetRepoMediaStream(ctx context.Context, params v1.GetRepoMediaS
 	}
 
 	var m media.Media
-	if params.Format == "raw" {
+	if params.Format == v1.MediaFormatRaw {
 		m = rp.Get(params.MediaId)
 	} else {
 		if !rp.Capabilities().Has(repo.CapabilityRemux) {
@@ -123,7 +123,7 @@ func (s *Server) GetRepoMediaStream(ctx context.Context, params v1.GetRepoMediaS
 		}
 
 		var err error
-		m, err = rp.Muxing().Remux(params.MediaId, format)
+		m, err = rp.Mux().Remux(params.MediaId, format)
 		if err != nil {
 			return nil, err
 		}
