@@ -5,6 +5,7 @@ import (
 	"github.com/katana-project/katana/config"
 	"github.com/katana-project/katana/server"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"net/http"
 	"os"
@@ -12,7 +13,7 @@ import (
 )
 
 // handleServer handles the server sub-command.
-func (ac *appContext) handleServer(cCtx *cli.Context) error {
+func (ac *appContext) handleServer(cCtx *cli.Context) (err error) {
 	cfg, err := config.ParseWithDefaults(cCtx.String("config"))
 	if err != nil {
 		return errors.Wrap(err, "failed to load config")
@@ -22,13 +23,18 @@ func (ac *appContext) handleServer(cCtx *cli.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to configure router")
 	}
+	defer func() {
+		if err0 := handler.Close(); err0 != nil {
+			err = multierr.Append(err, errors.Wrap(err0, "failed to close handler"))
+		}
+	}()
 
 	var (
 		httpServer = &http.Server{Addr: cfg.HTTP.Host, Handler: handler}
 		errorChan  = make(chan error)
 	)
 	go func() {
-		ac.logger.Info("listening for http requests", zap.String("address", httpServer.Addr))
+		ac.logger.Info("listening for http requests", zap.String("addr", httpServer.Addr))
 		errorChan <- httpServer.ListenAndServe()
 	}()
 
@@ -38,12 +44,12 @@ func (ac *appContext) handleServer(cCtx *cli.Context) error {
 	select {
 	case <-ctx.Done():
 		ac.logger.Info("shutting down gracefully")
-		if err := httpServer.Shutdown(ctx); err != nil {
-			return errors.Wrap(err, "failed to shutdown http server")
+		if err = httpServer.Shutdown(ctx); err != nil {
+			err = errors.Wrap(err, "failed to shutdown http server")
 		}
-	case err := <-errorChan:
-		return errors.Wrap(err, "http server errored")
+	case err = <-errorChan:
+		err = errors.Wrap(err, "http server errored")
 	}
 
-	return nil
+	return err
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/server/api/v1"
 	"github.com/ogen-go/ogen/ogenerrors"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 	"net/http"
@@ -67,19 +68,18 @@ func NewRouter(handler v1.Handler) (http.Handler, error) {
 	return s, nil
 }
 
-// NewConfiguredRouter creates a new server router.
-func NewConfiguredRouter(repos []repo.Repository, logger *zap.Logger) (http.Handler, error) {
-	srv, err := NewServer(repos, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to configure server")
-	}
-
-	return NewRouter(srv)
-}
-
 // Repos returns all repositories available to the server.
 func (s *Server) Repos() []repo.Repository {
 	return maps.Values(s.repos)
+}
+
+// Close cleans up residual data after the server.
+func (s *Server) Close() (err error) {
+	for _, r := range s.repos {
+		err = multierr.Append(err, r.Close())
+	}
+
+	return err
 }
 
 func (s *Server) newError(type_ v1.ErrorType, description string) *v1.Error {

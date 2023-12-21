@@ -3,6 +3,7 @@ package mux
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/go-faster/errors"
 	"github.com/katana-project/ffmpeg/avutil"
@@ -120,6 +121,8 @@ func (mr *muxRepository) Capabilities() repo.Capability {
 	return mr.Repository.Capabilities() | mr.cap
 }
 
+// TODO: Scan() - clean up unused remux/transcode output
+
 func (mr *muxRepository) Remove(m media.Media) error {
 	err := mr.Repository.Remove(m)
 	if err != nil {
@@ -138,17 +141,29 @@ func (mr *muxRepository) RemovePath(path string) error {
 	return mr.remove(path)
 }
 
-// remove cleans all remuxed and transcoded variants of the supplied media path.
-func (mr *muxRepository) remove(path string) error {
+func (mr *muxRepository) makeHash(path string) (string, error) {
 	relPath, err := filepath.Rel(mr.Repository.Path(), path)
 	if err != nil {
-		return errors.Wrap(err, "failed to make media path relative")
+		return "", errors.Wrap(err, "failed to make path relative")
 	}
 
-	var (
-		hash    = md5.Sum([]byte(relPath))
-		hashHex = hex.EncodeToString(hash[:])
-	)
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to stat file")
+	}
+
+	// fast hash using the relative path and file length
+	sum := md5.Sum([]byte(fmt.Sprintf("%s,%d", relPath, fi.Size())))
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// remove cleans all remuxed and transcoded variants of the supplied media path.
+func (mr *muxRepository) remove(path string) error {
+	hash, err := mr.makeHash(path)
+	if err != nil {
+		return errors.Wrap(err, "failed to make checksum")
+	}
+
 	err = filepath.Walk(mr.path, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -156,7 +171,7 @@ func (mr *muxRepository) remove(path string) error {
 
 		if !info.IsDir() {
 			fileName := info.Name()
-			if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hashHex {
+			if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hash {
 				_, err := mr.mu.Do(path, func() (interface{}, error) {
 					return nil, os.Remove(path)
 				})
@@ -185,6 +200,7 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 	}
 
 	path := m.Path()
+
 	mime, err := mimetype.DetectFile(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to detect MIME type")
@@ -193,16 +209,12 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 		return m, nil
 	}
 
-	relPath, err := filepath.Rel(mr.Repository.Path(), path)
+	hash, err := mr.makeHash(path)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to make media path relative")
+		return nil, errors.Wrap(err, "failed to make checksum")
 	}
 
-	var (
-		hash        = md5.Sum([]byte(relPath))
-		hashHex     = hex.EncodeToString(hash[:])
-		remuxedPath = filepath.Join(mr.remuxPath, hashHex+"."+format.Extension)
-	)
+	remuxedPath := filepath.Join(mr.remuxPath, hash+"."+format.Extension)
 	res, err := mr.mu.Do(path, func() (interface{}, error) {
 		remuxMedia := &relocatedMedia{
 			Media: m,

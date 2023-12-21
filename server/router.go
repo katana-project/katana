@@ -12,12 +12,30 @@ import (
 	"github.com/katana-project/katana/server/v1"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
+	"io"
 	"net/http"
 )
 
+// HandlerCloser is a http.Handler that is notified of the HTTP server shutting down.
+type HandlerCloser interface {
+	http.Handler
+	io.Closer
+}
+
+// handlerCloser is an implementation of HandlerCloser.
+type handlerCloser struct {
+	http.Handler
+	io.Closer
+}
+
 // NewRouter creates a new router from configuration.
-func NewRouter(repos []repo.Repository, logger *zap.Logger) (http.Handler, error) {
-	v1Srv, err := v1.NewConfiguredRouter(repos, logger)
+func NewRouter(repos []repo.Repository, logger *zap.Logger) (HandlerCloser, error) {
+	v1Srv, err := v1.NewServer(repos, logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create v1 api handler")
+	}
+
+	v1Rout, err := v1.NewRouter(v1Srv)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create v1 api router")
 	}
@@ -39,14 +57,17 @@ func NewRouter(repos []repo.Repository, logger *zap.Logger) (http.Handler, error
 			MaxAge:           300,
 		}))
 
-		r.Mount("/v1", http.StripPrefix("/api", v1Srv))
+		r.Mount("/v1", http.StripPrefix("/api", v1Rout))
 	})
 
-	return r, nil
+	return &handlerCloser{
+		Handler: r,
+		Closer:  v1Srv,
+	}, nil
 }
 
 // NewConfiguredRouter creates a new router from configuration.
-func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (http.Handler, error) {
+func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (HandlerCloser, error) {
 	repos := make(map[string]repo.Repository, len(cfg.Repos))
 	for repoId, repoConfig := range cfg.Repos {
 		if _, ok := repos[repoId]; ok {
