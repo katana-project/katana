@@ -121,7 +121,63 @@ func (mr *muxRepository) Capabilities() repo.Capability {
 	return mr.Repository.Capabilities() | mr.cap
 }
 
-// TODO: Scan() - clean up unused remux/transcode output
+func (mr *muxRepository) Scan() error {
+	err := mr.Repository.Scan()
+	if err != nil {
+		return err
+	}
+
+	var (
+		items  = mr.Repository.Items() // snapshot repo items
+		hashes = make(map[string]struct{}, len(items))
+	)
+	for _, item := range items {
+		hash, err := mr.makeHash(item.Path())
+		if err != nil {
+			return errors.Wrap(err, "failed to make item checksum")
+		}
+
+		hashes[hash] = struct{}{}
+	}
+
+	err = filepath.Walk(mr.path, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			if !strings.HasPrefix(mr.remuxPath, mr.path) && !strings.HasPrefix(mr.transcodePath, mr.path) {
+				return filepath.SkipDir // skip entering - not a directory we want to touch
+			}
+
+			return nil
+		}
+
+		var (
+			fileName = info.Name()
+			hash     = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+		)
+		if _, ok := hashes[hash]; !ok { // doesn't exist in repo, remove
+			_, err := mr.mu.Do(path, func() (interface{}, error) {
+				return nil, os.Remove(path)
+			})
+			mr.logger.Info(
+				"removed unused cache file",
+				zap.String("repo", mr.Repository.ID()),
+				zap.String("repo_path", mr.Repository.Path()),
+				zap.String("path", path),
+			)
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to walk + delete media")
+	}
+
+	return nil
+}
 
 func (mr *muxRepository) Remove(m media.Media) error {
 	err := mr.Repository.Remove(m)
@@ -169,14 +225,20 @@ func (mr *muxRepository) remove(path string) error {
 			return err
 		}
 
-		if !info.IsDir() {
-			fileName := info.Name()
-			if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hash {
-				_, err := mr.mu.Do(path, func() (interface{}, error) {
-					return nil, os.Remove(path)
-				})
-				return err
+		if info.IsDir() {
+			if !strings.HasPrefix(mr.remuxPath, mr.path) && !strings.HasPrefix(mr.transcodePath, mr.path) {
+				return filepath.SkipDir // skip entering - not a directory we want to touch
 			}
+
+			return nil
+		}
+
+		fileName := info.Name()
+		if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hash {
+			_, err := mr.mu.Do(path, func() (interface{}, error) {
+				return nil, os.Remove(path)
+			})
+			return err
 		}
 
 		return nil
