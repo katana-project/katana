@@ -242,6 +242,11 @@ func (s *Server) makeImages(ims []meta.Image, imageMode v1.ImageMode) []v1.Image
 
 	var images []v1.Image
 	for _, i := range ims {
+		type_ := i.Type()
+		if imageMode == v1.ImageModeBasic && type_ != meta.ImageTypeBackdrop && type_ != meta.ImageTypePoster {
+			continue // basic only sends backdrops and posters
+		}
+
 		im, err := s.makeImage(i)
 		if err != nil {
 			s.logger.Error(
@@ -252,10 +257,6 @@ func (s *Server) makeImages(ims []meta.Image, imageMode v1.ImageMode) []v1.Image
 				zap.Error(err),
 			)
 			continue
-		}
-
-		if imageMode == v1.ImageModeBasic && (im.Type == v1.ImageTypeAvatar || im.Type == v1.ImageTypeStill) {
-			continue // basic only sends backdrops and posters
 		}
 
 		images = append(images, im)
