@@ -7,19 +7,20 @@ require (
 	github.com/erni27/imcache v1.1.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gabriel-vasile/mimetype v1.4.3
-	github.com/go-chi/chi/v5 v5.0.10
+	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/cors v1.2.1
-	github.com/go-faster/errors v0.7.0
+	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.1.0
 	github.com/katana-project/ffmpeg v0.0.0-20231126124327-2d1a6344442d
-	github.com/katana-project/mux v0.0.0-20231210134354-26466dcf27e3
-	github.com/katana-project/tmdb v0.0.0-20231116170353-456b0d7a8b32
+	github.com/katana-project/mux v0.0.0-20231223150437-1fadc4d6f105
+	github.com/katana-project/tmdb v0.0.0-20231225132226-3945028c5a06
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/ogen-go/ogen v0.80.1
+	github.com/ogen-go/ogen v0.81.0
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.26.0
+	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.26.0
-	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
+	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
 	golang.org/x/text v0.14.0
 )
 
@@ -30,14 +31,13 @@ require (
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
-	github.com/google/uuid v1.4.0 // indirect
+	github.com/google/uuid v1.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
-	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
+	github.com/xrash/smetrics v0.0.0-20231213231151-1d8dd44e695e // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
