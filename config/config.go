@@ -6,27 +6,27 @@ import (
 	"path/filepath"
 )
 
-// MetadataSource is a metadata source Name.
+// MetadataSource is a metadata source ID.
 type MetadataSource string
 
 const (
-	// MetadataSourceLiteral is the literal metadata source Name (meta.NewLiteralSource).
+	// MetadataSourceLiteral is the literal metadata source ID (meta.NewLiteralSource).
 	MetadataSourceLiteral MetadataSource = "literal"
-	// MetadataSourceAnalysis is the analysis metadata source Name (meta.NewFileAnalysisSource).
+	// MetadataSourceAnalysis is the analysis metadata source ID (meta.NewFileAnalysisSource).
 	MetadataSourceAnalysis MetadataSource = "analysis"
-	// MetadataSourceTMDB is the TMDB (The Movie Database) metadata source Name (tmdb.NewSource).
+	// MetadataSourceTMDB is the TMDB (The Movie Database) metadata source ID (tmdb.NewSource).
 	MetadataSourceTMDB MetadataSource = "tmdb"
 )
 
-// Capability is a capability Name.
+// Capability is a capability ID.
 type Capability string
 
 const (
-	// CapabilityWatch is the filesystem watch capability Name.
+	// CapabilityWatch is the filesystem watch capability ID.
 	CapabilityWatch Capability = "watch"
-	// CapabilityRemux is the remux capability Name.
+	// CapabilityRemux is the remux capability ID.
 	CapabilityRemux Capability = "remux"
-	// CapabilityTranscode is the transcode capability Name.
+	// CapabilityTranscode is the transcode capability ID.
 	CapabilityTranscode Capability = "transcode"
 )
 
@@ -41,7 +41,7 @@ type Section[T any] interface {
 type Config struct {
 	// HTTP is the "http" configuration section.
 	HTTP *HTTP `toml:"http"`
-	// Repos is the collection of repository configuration, keyed by their Name.
+	// Repos is the collection of repository configuration, keyed by their ID.
 	Repos map[string]*Repo `toml:"repos"`
 }
 
@@ -77,7 +77,7 @@ func (h *HTTP) Defaults() *HTTP {
 
 // Repo is a base repository configuration.
 type Repo struct {
-	// Name is the name of the repository, defaults to the repository Name.
+	// Name is the name of the repository, defaults to the repository ID.
 	Name string `toml:"name"`
 	// Path is the relative or absolute path of the repository's directory.
 	Path string `toml:"path"`

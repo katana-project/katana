@@ -12,7 +12,7 @@ type ErrInvalidID struct {
 
 // Error returns the string representation of the error.
 func (ein *ErrInvalidID) Error() string {
-	return fmt.Sprintf("invalid id %s, expected %s", ein.ID, ein.Expected)
+	return fmt.Sprintf("invalid ID %s, expected %s", ein.ID, ein.Expected)
 }
 
 // ErrInvalidMediaPath is an error about an unexpected media path,
@@ -52,7 +52,7 @@ type ErrDuplicateID struct {
 
 // Error returns the string representation of the error.
 func (edi *ErrDuplicateID) Error() string {
-	return fmt.Sprintf("duplicate media Name %s in repository %s", edi.ID, edi.Repo)
+	return fmt.Sprintf("duplicate media ID %s in repository %s", edi.ID, edi.Repo)
 }
 
 // ErrDuplicatePath is an error about a duplicate media path in a repository.

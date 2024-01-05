@@ -51,7 +51,7 @@ func NewServer(repos []repo.Repository, logger *zap.Logger) (*Server, error) {
 	for _, r := range repos {
 		repoId := r.ID()
 		if _, ok := reposById[repoId]; ok {
-			return nil, fmt.Errorf("duplicate repository name %s", repoId)
+			return nil, fmt.Errorf("duplicate repository ID %s", repoId)
 		}
 
 		reposById[repoId] = r

@@ -104,16 +104,16 @@ type Repository interface {
 type MuxingRepository interface {
 	Repository
 
-	// Remux remuxes media to the desired container format and returns the remuxed media or nil, if the Name wasn't found.
+	// Remux remuxes media to the desired container format and returns the remuxed media or nil, if the ID wasn't found.
 	Remux(id string, format *media.Format) (media.Media, error)
 }
 
-// ValidID checks whether the supplied string is a valid repository Name.
+// ValidID checks whether the supplied string is a valid repository ID.
 func ValidID(s string) bool {
 	return idPattern.MatchString(s)
 }
 
-// SanitizeID sanitizes a string to be usable as a repository Name.
+// SanitizeID sanitizes a string to be usable as a repository ID.
 // Example: "My Shows" -> "my-shows"
 func SanitizeID(s string) string {
 	spaceLessLowerCase := strings.ToLower(commonDelimiterReplacer.Replace(s))

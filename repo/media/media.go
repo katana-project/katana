@@ -26,12 +26,12 @@ type Media interface {
 	Format() *Format
 }
 
-// ValidID checks whether the supplied string is a valid media Name.
+// ValidID checks whether the supplied string is a valid media ID.
 func ValidID(s string) bool {
 	return idPattern.MatchString(s)
 }
 
-// SanitizeID sanitizes a string to be usable as a media Name.
+// SanitizeID sanitizes a string to be usable as a media ID.
 // Example: "Test.mkv" -> "test-mkv"
 func SanitizeID(s string) string {
 	spaceLessLowerCase := strings.ToLower(commonDelimiterReplacer.Replace(s))
