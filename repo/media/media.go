@@ -2,7 +2,7 @@ package media
 
 import (
 	"encoding/json"
-	"github.com/go-faster/errors"
+	"fmt"
 	"github.com/katana-project/katana/repo/media/meta"
 	"regexp"
 	"strings"
@@ -20,18 +20,18 @@ type Media interface {
 	ID() string
 	// Path is the path of this media file, absolute.
 	Path() string
-	// MIME is the MIME type of this media file.
-	MIME() string
 	// Meta is the metadata object, may be nil.
 	Meta() meta.Metadata
+	// Format is the media format.
+	Format() *Format
 }
 
-// ValidID checks whether the supplied string is a valid media ID.
+// ValidID checks whether the supplied string is a valid media Name.
 func ValidID(s string) bool {
 	return idPattern.MatchString(s)
 }
 
-// SanitizeID sanitizes a string to be usable as a media ID.
+// SanitizeID sanitizes a string to be usable as a media Name.
 // Example: "Test.mkv" -> "test-mkv"
 func SanitizeID(s string) string {
 	spaceLessLowerCase := strings.ToLower(commonDelimiterReplacer.Replace(s))
@@ -41,19 +41,19 @@ func SanitizeID(s string) string {
 
 // BasicMedia is a JSON-serializable generic Media.
 type BasicMedia struct {
-	ID_   string
-	Path_ string
-	MIME_ string
-	Meta_ meta.Metadata
+	ID_     string
+	Path_   string
+	Meta_   meta.Metadata
+	Format_ *Format
 }
 
 // NewMedia creates a Media with set values.
-func NewMedia(id, path string, mime string, meta0 meta.Metadata) Media {
+func NewMedia(id, path string, meta0 meta.Metadata, format *Format) Media {
 	return &BasicMedia{
-		ID_:   id,
-		Path_: path,
-		MIME_: mime,
-		Meta_: meta0,
+		ID_:     id,
+		Path_:   path,
+		Meta_:   meta0,
+		Format_: format,
 	}
 }
 
@@ -67,10 +67,10 @@ func NewBasicMedia(m Media) *BasicMedia {
 	}
 
 	return &BasicMedia{
-		ID_:   m.ID(),
-		Path_: m.Path(),
-		MIME_: m.MIME(),
-		Meta_: m.Meta(),
+		ID_:     m.ID(),
+		Path_:   m.Path(),
+		Meta_:   m.Meta(),
+		Format_: m.Format(),
 	}
 }
 
@@ -80,19 +80,19 @@ func (bm *BasicMedia) ID() string {
 func (bm *BasicMedia) Path() string {
 	return bm.Path_
 }
-func (bm *BasicMedia) MIME() string {
-	return bm.MIME_
-}
 func (bm *BasicMedia) Meta() meta.Metadata {
 	return bm.Meta_
+}
+func (bm *BasicMedia) Format() *Format {
+	return bm.Format_
 }
 
 // basicMediaJSONHelper is a helper struct for unmarshalling.
 type basicMediaJSONHelper struct {
-	ID   string          `json:"id"`
-	Path string          `json:"path"`
-	MIME string          `json:"mime"`
-	Meta json.RawMessage `json:"meta"`
+	ID     string          `json:"id"`
+	Path   string          `json:"path"`
+	Meta   json.RawMessage `json:"meta"`
+	Format *Format         `json:"format"`
 }
 
 // metadataJSONHelper is a helper struct for figuring out the concrete metadata type when unmarshalling foreign JSON.
@@ -113,19 +113,19 @@ func (bm *BasicMedia) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&struct {
-		ID   string        `json:"id"`
-		Path string        `json:"path"`
-		MIME string        `json:"mime"`
-		Meta meta.Metadata `json:"meta"`
+		ID     string        `json:"id"`
+		Path   string        `json:"path"`
+		Meta   meta.Metadata `json:"meta"`
+		Format *Format       `json:"format"`
 	}{
-		ID:   bm.ID_,
-		Path: bm.Path_,
-		MIME: bm.MIME_,
-		Meta: meta0,
+		ID:     bm.ID_,
+		Path:   bm.Path_,
+		Meta:   meta0,
+		Format: bm.Format_,
 	})
 }
 
-// UnmarshalJSON unmarshals JSON data into this struct.
+// UnmarshalJSON unmarshalls JSON data into this struct.
 func (bm *BasicMedia) UnmarshalJSON(bytes []byte) error {
 	var helper basicMediaJSONHelper
 	if err := json.Unmarshal(bytes, &helper); err != nil {
@@ -134,7 +134,7 @@ func (bm *BasicMedia) UnmarshalJSON(bytes []byte) error {
 
 	bm.ID_ = helper.ID
 	bm.Path_ = helper.Path
-	bm.MIME_ = helper.MIME
+	bm.Format_ = helper.Format
 
 	var metaBase metadataJSONHelper
 	if err := json.Unmarshal(helper.Meta, &metaBase); err != nil {
@@ -164,7 +164,7 @@ func (bm *BasicMedia) UnmarshalJSON(bytes []byte) error {
 
 		bm.Meta_ = &metaData
 	default:
-		return errors.Errorf("unexpected metadata type %d", metaBase.Type)
+		return fmt.Errorf("unexpected metadata type %d", metaBase.Type)
 	}
 
 	return nil

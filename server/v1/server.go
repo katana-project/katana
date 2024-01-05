@@ -1,18 +1,40 @@
 package v1
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/erni27/imcache"
-	"github.com/go-faster/errors"
-	"github.com/go-faster/jx"
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/server/api/v1"
-	"github.com/ogen-go/ogen/ogenerrors"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 	"net/http"
+)
+
+// ErrorHandler handles translating errors to HTTP responses.
+type ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
+
+var (
+	DefaultRequestErrorHandler ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+
+		e := v1.Error{Type: v1.BadRequest, Description: err.Error()}
+		if err := json.NewEncoder(w).Encode(e); err != nil {
+			_, _ = fmt.Fprintf(w, "{\"type\":\"%s\",\"description\":\"%s\"}", v1.InternalError, "failed to serialize error")
+		}
+	}
+
+	DefaultResponseErrorHandler ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+
+		e := v1.Error{Type: v1.InternalError, Description: err.Error()}
+		if err := json.NewEncoder(w).Encode(e); err != nil {
+			_, _ = fmt.Fprintf(w, "{\"type\":\"%s\",\"description\":\"%s\"}", v1.InternalError, "failed to serialize error")
+		}
+	}
 )
 
 // Server is a REST server for the Katana v1 API.
@@ -29,7 +51,7 @@ func NewServer(repos []repo.Repository, logger *zap.Logger) (*Server, error) {
 	for _, r := range repos {
 		repoId := r.ID()
 		if _, ok := reposById[repoId]; ok {
-			return nil, errors.New(fmt.Sprintf("duplicate repository ID %s", repoId))
+			return nil, fmt.Errorf("duplicate repository name %s", repoId)
 		}
 
 		reposById[repoId] = r
@@ -41,31 +63,17 @@ func NewServer(repos []repo.Repository, logger *zap.Logger) (*Server, error) {
 	}, nil
 }
 
-// DefaultErrorHandler is the default error handler that writes a v1.Error object.
-func DefaultErrorHandler(_ context.Context, w http.ResponseWriter, _ *http.Request, err error) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(ogenerrors.ErrorCode(err))
-
-	e := jx.GetEncoder()
-	e.ObjStart()
-	e.FieldStart("type")
-	v, _ := v1.ErrorTypeInternalError.MarshalText()
-	e.ByteStr(v)
-	e.FieldStart("description")
-	e.StrEscape(err.Error())
-	e.ObjEnd()
-
-	_, _ = w.Write(e.Bytes())
-}
-
 // NewRouter creates a new v1 API router.
-func NewRouter(handler v1.Handler) (http.Handler, error) {
-	s, err := v1.NewServer(handler, v1.WithPathPrefix("/v1"), v1.WithErrorHandler(DefaultErrorHandler))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create api server")
-	}
+func NewRouter(baseUrl string, handler v1.StrictServerInterface) http.Handler {
+	h := v1.NewStrictHandlerWithOptions(handler, nil, v1.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  DefaultRequestErrorHandler,
+		ResponseErrorHandlerFunc: DefaultResponseErrorHandler,
+	})
 
-	return s, nil
+	return v1.HandlerWithOptions(h, v1.ChiServerOptions{
+		BaseURL:          baseUrl,
+		ErrorHandlerFunc: DefaultRequestErrorHandler,
+	})
 }
 
 // Repos returns all repositories available to the server.
@@ -80,11 +88,4 @@ func (s *Server) Close() (err error) {
 	}
 
 	return err
-}
-
-func (s *Server) newError(type_ v1.ErrorType, description string) *v1.Error {
-	return &v1.Error{
-		Type:        type_,
-		Description: description,
-	}
 }

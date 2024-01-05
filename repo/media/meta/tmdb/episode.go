@@ -9,46 +9,49 @@ import (
 type episodeMetadata struct {
 	meta.MovieOrSeriesMetadata
 
-	data        *tmdb.TvEpisodeDetailsOK
-	imageConfig *tmdb.ConfigurationDetailsOKImages
+	data   *tmdb.TvEpisodeDetailsResponse
+	config *tmdb.ConfigurationDetailsResponse
 }
 
 func (em *episodeMetadata) Type() meta.Type {
 	return meta.TypeEpisode
 }
 func (em *episodeMetadata) Title() string {
-	return em.data.GetName().Or("")
+	return *em.data.JSON200.Name
 }
 func (em *episodeMetadata) OriginalTitle() string {
-	return em.data.GetName().Or("") // no original title
+	return *em.data.JSON200.Name // no original title
 }
 func (em *episodeMetadata) Overview() string {
-	return em.data.GetOverview().Or("")
+	return *em.data.JSON200.Overview
 }
 func (em *episodeMetadata) ReleaseDate() time.Time {
-	if releaseDate, ok := em.data.GetAirDate().Get(); ok {
-		if parsedTime, err := time.Parse(time.DateOnly, releaseDate); err == nil {
-			return parsedTime
-		}
+	if parsedTime, err := time.Parse(time.DateOnly, *em.data.JSON200.AirDate); err == nil {
+		return parsedTime
 	}
 
 	return invalidTime
 }
-func (em *episodeMetadata) VoteRating() float64 {
-	return em.data.GetVoteAverage().Or(10)
+func (em *episodeMetadata) VoteRating() float32 {
+	return *em.data.JSON200.VoteAverage
 }
 func (em *episodeMetadata) Images() []meta.Image {
-	if em.imageConfig == nil {
+	if em.config == nil {
 		return nil
 	}
 
+	url := em.config.JSON200.Images.SecureBaseUrl
+	if url == nil {
+		url = em.config.JSON200.Images.BaseUrl
+	}
+
 	var images []meta.Image
-	if stillPath, ok := em.data.GetStillPath().Get(); ok {
+	if em.data.JSON200.StillPath != nil {
 		images = append(images, &image{
-			type_:       meta.ImageTypeStill,
-			path:        stillPath,
-			description: "Still",
-			config:      em.imageConfig,
+			type_:   meta.ImageTypeStill,
+			path:    *em.data.JSON200.StillPath,
+			desc:    "Still",
+			baseUrl: *url,
 		})
 	}
 
@@ -58,8 +61,8 @@ func (em *episodeMetadata) Series() meta.MovieOrSeriesMetadata {
 	return em.MovieOrSeriesMetadata
 }
 func (em *episodeMetadata) Season() int {
-	return em.data.GetSeasonNumber().Or(-1)
+	return *em.data.JSON200.SeasonNumber
 }
 func (em *episodeMetadata) Episode() int {
-	return em.data.GetEpisodeNumber().Or(-1)
+	return *em.data.JSON200.EpisodeNumber
 }

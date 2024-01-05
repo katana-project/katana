@@ -1,9 +1,9 @@
 package server
 
 import (
-	"context"
+	"fmt"
 	"github.com/erni27/imcache"
-	"github.com/go-faster/errors"
+	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/katana/repo/media/meta/tmdb"
 	tmdbClient "github.com/katana-project/tmdb"
@@ -32,15 +32,6 @@ type tmdbSourceOptions struct {
 	CacheExp int `mapstructure:"cache_exp"`
 }
 
-// tmdbSecuritySource is a tmdb.SecuritySource implementation that provides a pre-defined key.
-type tmdbSecuritySource struct {
-	key tmdbClient.Sec0
-}
-
-func (tss *tmdbSecuritySource) Sec0(_ context.Context, _ string) (tmdbClient.Sec0, error) {
-	return tss.key, nil
-}
-
 // NewConfiguredMetaSource creates a metadata source from configuration.
 func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.Source, error) {
 	switch name {
@@ -57,8 +48,7 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 			url = tmdbApiUrl
 		}
 
-		sec0 := &tmdbSecuritySource{key: tmdbClient.Sec0{Token: parsedOpts.Key}}
-		client, err := tmdbClient.NewClient(url, sec0)
+		client, err := tmdbClient.NewClientWithResponses(url, tmdbClient.WithToken(parsedOpts.Key))
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create tmdb api client")
 		}
@@ -87,7 +77,7 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 		for sourceName, sourceOptions0 := range options {
 			sourceOptions, ok := sourceOptions0.(map[string]interface{})
 			if !ok {
-				return nil, errors.Errorf(
+				return nil, fmt.Errorf(
 					"failed to parse metadata sub-source %s options, expected map[string]interface{}, got %s",
 					sourceName, reflect.TypeOf(sourceOptions0).String(),
 				)
@@ -114,5 +104,5 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 		return meta.NewFileAnalysisSource(metaSource), nil
 	}
 
-	return nil, errors.Errorf("unknown metadata source %s", name)
+	return nil, fmt.Errorf("unknown metadata source %s", name)
 }

@@ -12,5 +12,5 @@ type ErrDuplicateRepo struct {
 
 // Error returns the string representation of the error.
 func (edr *ErrDuplicateRepo) Error() string {
-	return fmt.Sprintf("duplicate repository ID %s, path %s", edr.ID, edr.Path)
+	return fmt.Sprintf("duplicate repository Name %s, path %s", edr.ID, edr.Path)
 }

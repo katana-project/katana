@@ -2,7 +2,7 @@ package repo
 
 import (
 	"github.com/fsnotify/fsnotify"
-	"github.com/go-faster/errors"
+	"github.com/katana-project/katana/internal/errors"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 	"io/fs"
@@ -137,7 +137,7 @@ func (wr *watchedRepository) handleFsEvents() {
 }
 
 func (wr *watchedRepository) handleFsEvent(event fsnotify.Event) error {
-	// event.ID is always absolute, since path supplied to watcher is absolute
+	// event.Name is always absolute, since path supplied to watcher is absolute
 
 	fileName := filepath.Base(event.Name)
 	if strings.HasPrefix(fileName, ".") {

@@ -2,8 +2,8 @@ package repo
 
 import (
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/config"
+	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/katana/repo/media/meta"
 	"go.uber.org/zap"
@@ -104,16 +104,16 @@ type Repository interface {
 type MuxingRepository interface {
 	Repository
 
-	// Remux remuxes media to the desired container format and returns the remuxed media or nil, if the ID wasn't found.
+	// Remux remuxes media to the desired container format and returns the remuxed media or nil, if the Name wasn't found.
 	Remux(id string, format *media.Format) (media.Media, error)
 }
 
-// ValidID checks whether the supplied string is a valid repository ID.
+// ValidID checks whether the supplied string is a valid repository Name.
 func ValidID(s string) bool {
 	return idPattern.MatchString(s)
 }
 
-// SanitizeID sanitizes a string to be usable as a repository ID.
+// SanitizeID sanitizes a string to be usable as a repository Name.
 // Example: "My Shows" -> "my-shows"
 func SanitizeID(s string) string {
 	spaceLessLowerCase := strings.ToLower(commonDelimiterReplacer.Replace(s))
@@ -194,25 +194,26 @@ func (cr *crudRepository) removeItem(id, path string) bool {
 	return len(cr.itemsById) == desiredLen
 }
 
-func (cr *crudRepository) checkMime(path, mime string) error {
-	group := strings.SplitN(mime, "/", 2)[0]
+func (cr *crudRepository) checkFormat(path string, format *media.Format) error {
+	group := strings.SplitN(format.MIME, "/", 2)[0]
 	if !slices.Contains(allowedMimeGroups, group) {
 		return &ErrInvalidMediaType{
 			Path: path,
-			Type: mime,
+			Type: format.MIME,
 		}
 	}
 
 	return nil
 }
 
-func (cr *crudRepository) detectAndCheckMime(path string) (*mimetype.MIME, error) {
+func (cr *crudRepository) detectAndCheckFormat(path string) (*media.Format, error) {
 	t, err := mimetype.DetectFile(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to detect MIME type")
 	}
 
-	return t, cr.checkMime(path, t.String())
+	format := media.FindUnsupportedFormat(t.String(), filepath.Ext(path))
+	return format, cr.checkFormat(path, format)
 }
 
 func (cr *crudRepository) Scan() error {
@@ -251,7 +252,7 @@ func (cr *crudRepository) Scan() error {
 			}
 
 			if _, ok := cr.itemsByPath[relPath]; !ok {
-				mime, err := cr.detectAndCheckMime(path)
+				format, err := cr.detectAndCheckFormat(path)
 				if err != nil {
 					var eimt ErrInvalidMediaType
 					if errors.Is(err, &eimt) { // invalid MIME type, skip
@@ -268,7 +269,7 @@ func (cr *crudRepository) Scan() error {
 						return nil
 					}
 
-					return err // wrapped in checkMime already
+					return err // wrapped in checkFormat already
 				}
 
 				m, err := cr.metaSource.FromFile(path)
@@ -277,7 +278,7 @@ func (cr *crudRepository) Scan() error {
 				}
 
 				id := media.SanitizeID(d.Name())
-				cr.addItem(id, relPath, media.NewMedia(id, path, mime.String(), m))
+				cr.addItem(id, relPath, media.NewMedia(id, path, m, format))
 			}
 		}
 
@@ -365,17 +366,17 @@ func (cr *crudRepository) Add(m media.Media) error {
 	}
 
 	path := m.Path()
-	if err := cr.checkMime(path, m.MIME()); err != nil {
-		return errors.Wrap(err, "failed MIME type check")
+	if err := cr.checkFormat(path, m.Format()); err != nil {
+		return errors.Wrap(err, "failed format check")
 	}
 
 	return cr.add(id, path, m)
 }
 
 func (cr *crudRepository) AddPath(path string) error {
-	mime, err := cr.detectAndCheckMime(path)
+	format, err := cr.detectAndCheckFormat(path)
 	if err != nil {
-		return errors.Wrap(err, "failed MIME type check")
+		return errors.Wrap(err, "failed format check")
 	}
 
 	m, err := cr.metaSource.FromFile(path)
@@ -384,7 +385,7 @@ func (cr *crudRepository) AddPath(path string) error {
 	}
 
 	id := media.SanitizeID(filepath.Base(path))
-	return cr.add(id, path, media.NewMedia(id, path, mime.String(), m))
+	return cr.add(id, path, media.NewMedia(id, path, m, format))
 }
 
 func (cr *crudRepository) Remove(m media.Media) error {

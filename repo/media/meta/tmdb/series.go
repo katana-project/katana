@@ -8,41 +8,40 @@ import (
 )
 
 type seriesMetadata struct {
-	data        *tmdb.TvSeriesDetailsOK
-	credits     *tmdb.TvSeriesCreditsOK
-	imageConfig *tmdb.ConfigurationDetailsOKImages
+	data    *tmdb.TvSeriesDetailsResponse
+	credits *tmdb.TvSeriesCreditsResponse
+	config  *tmdb.ConfigurationDetailsResponse
 }
 
 func (sm *seriesMetadata) Type() meta.Type {
 	return meta.TypeSeries
 }
 func (sm *seriesMetadata) Title() string {
-	return sm.data.GetName().Or("")
+	return *sm.data.JSON200.Name
 }
 func (sm *seriesMetadata) OriginalTitle() string {
-	return sm.data.GetOriginalName().Or("")
+	return *sm.data.JSON200.OriginalName
 }
 func (sm *seriesMetadata) Overview() string {
-	return sm.data.GetOverview().Or("")
+	return *sm.data.JSON200.Overview
 }
 func (sm *seriesMetadata) ReleaseDate() time.Time {
-	if releaseDate, ok := sm.data.GetFirstAirDate().Get(); ok {
-		if parsedTime, err := time.Parse(time.DateOnly, releaseDate); err == nil {
-			return parsedTime
-		}
+	if parsedTime, err := time.Parse(time.DateOnly, *sm.data.JSON200.FirstAirDate); err == nil {
+		return parsedTime
 	}
 
 	return invalidTime
 }
-func (sm *seriesMetadata) VoteRating() float64 {
-	return sm.data.GetVoteAverage().Or(10)
+func (sm *seriesMetadata) VoteRating() float32 {
+	return *sm.data.JSON200.VoteAverage
 }
 func (sm *seriesMetadata) Genres() []string {
-	var genreNames []string
-	for _, genre := range sm.data.GetGenres() {
-		if name, ok := genre.GetName().Get(); ok {
-			genreNames = append(genreNames, name)
-		}
+	var (
+		genres     = *sm.data.JSON200.Genres
+		genreNames = make([]string, len(genres))
+	)
+	for i, genre := range genres {
+		genreNames[i] = *genre.Name
 	}
 
 	return genreNames
@@ -52,15 +51,30 @@ func (sm *seriesMetadata) Cast() []meta.CastMember {
 		return nil
 	}
 
+	imageUrl := sm.config.JSON200.Images.SecureBaseUrl
+	if imageUrl == nil {
+		imageUrl = sm.config.JSON200.Images.BaseUrl
+	}
+
 	var (
-		cast        = sm.credits.GetCast()
+		cast        = *sm.credits.JSON200.Cast
 		castMembers = make([]meta.CastMember, len(cast))
 	)
 	for i, member := range cast {
-		member0 := member // this needs to be here, a pointer to member ends up at the last value = nasty issues
-		castMembers[i] = &seriesCastMember{
-			data:        &member0,
-			imageConfig: sm.imageConfig,
+		var img *image
+		if member.ProfilePath != nil {
+			img = &image{
+				type_:   meta.ImageTypeAvatar,
+				path:    *member.ProfilePath,
+				desc:    *member.Name,
+				baseUrl: *imageUrl,
+			}
+		}
+
+		castMembers[i] = &castMember{
+			name: *member.Name,
+			role: *member.Character,
+			img:  img,
 		}
 	}
 
@@ -68,14 +82,12 @@ func (sm *seriesMetadata) Cast() []meta.CastMember {
 }
 func (sm *seriesMetadata) Languages() []language.Tag {
 	var (
-		languages    = sm.data.GetSpokenLanguages()
+		languages    = *sm.data.JSON200.SpokenLanguages
 		languageTags = make([]language.Tag, 0, len(languages))
 	)
 	for _, lang := range languages {
-		if code, ok := lang.GetIso6391().Get(); ok {
-			if tag, err := language.Parse(code); err == nil {
-				languageTags = append(languageTags, tag)
-			}
+		if tag, err := language.Parse(*lang.Iso6391); err == nil {
+			languageTags = append(languageTags, tag)
 		}
 	}
 
@@ -83,69 +95,44 @@ func (sm *seriesMetadata) Languages() []language.Tag {
 }
 func (sm *seriesMetadata) Countries() []language.Region {
 	var (
-		countries = sm.data.GetProductionCountries()
+		countries = *sm.data.JSON200.ProductionCountries
 		regions   = make([]language.Region, 0, len(countries))
 	)
 	for _, country := range countries {
-		if code, ok := country.GetIso31661().Get(); ok {
-			if region, err := language.ParseRegion(code); err == nil {
-				regions = append(regions, region)
-			}
+		if region, err := language.ParseRegion(*country.Iso31661); err == nil {
+			regions = append(regions, region)
 		}
 	}
 
 	return regions
 }
 func (sm *seriesMetadata) Images() []meta.Image {
-	if sm.imageConfig == nil {
+	if sm.config == nil {
 		return nil
 	}
 
+	url := sm.config.JSON200.Images.SecureBaseUrl
+	if url == nil {
+		url = sm.config.JSON200.Images.BaseUrl
+	}
+
 	var images []meta.Image
-	if backdropPath, ok := sm.data.GetBackdropPath().Get(); ok {
+	if sm.data.JSON200.BackdropPath != nil {
 		images = append(images, &image{
-			type_:       meta.ImageTypeBackdrop,
-			path:        backdropPath,
-			description: "Backdrop",
-			config:      sm.imageConfig,
+			type_:   meta.ImageTypeBackdrop,
+			path:    *sm.data.JSON200.BackdropPath,
+			desc:    "Backdrop",
+			baseUrl: *url,
 		})
 	}
-	if posterPath, ok := sm.data.GetPosterPath().Get(); ok {
+	if sm.data.JSON200.PosterPath != nil {
 		images = append(images, &image{
-			type_:       meta.ImageTypePoster,
-			path:        posterPath,
-			description: "Poster",
-			config:      sm.imageConfig,
+			type_:   meta.ImageTypePoster,
+			path:    *sm.data.JSON200.PosterPath,
+			desc:    "Poster",
+			baseUrl: *url,
 		})
 	}
 
 	return images
-}
-
-type seriesCastMember struct {
-	data        *tmdb.TvSeriesCreditsOKCastItem
-	imageConfig *tmdb.ConfigurationDetailsOKImages
-}
-
-func (scm *seriesCastMember) Name() string {
-	return scm.data.GetName().Or("")
-}
-func (scm *seriesCastMember) Role() string {
-	return scm.data.GetCharacter().Or("")
-}
-func (scm *seriesCastMember) Image() meta.Image {
-	if scm.imageConfig == nil {
-		return nil
-	}
-
-	if path, ok := scm.data.GetProfilePath().Get(); ok {
-		return &image{
-			type_:       meta.ImageTypeAvatar,
-			path:        path,
-			description: scm.data.GetName().Or(""),
-			config:      scm.imageConfig,
-		}
-	}
-
-	return nil
 }

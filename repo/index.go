@@ -2,7 +2,7 @@ package repo
 
 import (
 	"encoding/json"
-	"github.com/go-faster/errors"
+	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo/media"
 	"go.uber.org/zap"
 	"io/fs"
@@ -99,7 +99,7 @@ func (ir *indexedRepository) load() error {
 		}
 
 		// un-hack the Media contract for code reuse - you're not supposed to have relative paths in there
-		absItem := media.NewBasicMedia(media.NewMedia(item.ID(), absItemPath, item.MIME(), item.Meta()))
+		absItem := media.NewBasicMedia(media.NewMedia(item.ID(), absItemPath, item.Meta(), item.Format()))
 		if err := ir.Repository.Add(absItem); err != nil {
 			return errors.Wrap(err, "failed to add index item to repository")
 		}
@@ -134,7 +134,7 @@ func (ir *indexedRepository) save() error {
 		}
 
 		// hack the Media contract for code reuse - you're not supposed to have relative paths in there
-		ix.Items[i] = media.NewBasicMedia(media.NewMedia(item.ID(), relItemPath, item.MIME(), item.Meta()))
+		ix.Items[i] = media.NewBasicMedia(media.NewMedia(item.ID(), relItemPath, item.Meta(), item.Format()))
 	}
 
 	bytes, err := json.Marshal(ix)

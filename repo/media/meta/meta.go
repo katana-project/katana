@@ -31,7 +31,7 @@ type Metadata interface {
 	// ReleaseDate returns the date of release, such as "2022-10-09".
 	ReleaseDate() time.Time
 	// VoteRating returns the average rating of the media, between 0 and 10, such as 8.7.
-	VoteRating() float64
+	VoteRating() float32
 	// Images returns the promotional images of the media.
 	Images() []Image
 }
@@ -43,12 +43,12 @@ type BasicMetadata struct {
 	OriginalTitle_ string        `json:"original_title"`
 	Overview_      string        `json:"overview"`
 	ReleaseDate_   time.Time     `json:"release_date"`
-	VoteRating_    float64       `json:"vote_rating"`
+	VoteRating_    float32       `json:"vote_rating"`
 	Images_        []*BasicImage `json:"images"`
 }
 
 // NewMetadata creates a Metadata with set values.
-func NewMetadata(type_ Type, title, originalTitle, overview string, releaseDate time.Time, voteRating float64, images []Image) Metadata {
+func NewMetadata(type_ Type, title, originalTitle, overview string, releaseDate time.Time, voteRating float32, images []Image) Metadata {
 	images0 := make([]*BasicImage, len(images))
 	for i, image := range images {
 		images0[i] = NewBasicImage(image)
@@ -108,7 +108,7 @@ func (bm *BasicMetadata) Overview() string {
 func (bm *BasicMetadata) ReleaseDate() time.Time {
 	return bm.ReleaseDate_
 }
-func (bm *BasicMetadata) VoteRating() float64 {
+func (bm *BasicMetadata) VoteRating() float32 {
 	return bm.VoteRating_
 }
 func (bm *BasicMetadata) Images() []Image {

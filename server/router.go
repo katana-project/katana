@@ -4,8 +4,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/config"
+	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/katana/repo/mux"
@@ -35,11 +35,6 @@ func NewRouter(repos []repo.Repository, logger *zap.Logger) (HandlerCloser, erro
 		return nil, errors.Wrap(err, "failed to create v1 api handler")
 	}
 
-	v1Rout, err := v1.NewRouter(v1Srv)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create v1 api router")
-	}
-
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RequestLogger(&middleware.DefaultLogFormatter{
@@ -57,7 +52,7 @@ func NewRouter(repos []repo.Repository, logger *zap.Logger) (HandlerCloser, erro
 			MaxAge:           300,
 		}))
 
-		r.Mount("/v1", http.StripPrefix("/api", v1Rout))
+		r.Mount("/v1", v1.NewRouter("/api/v1", v1Srv))
 	})
 
 	return &handlerCloser{

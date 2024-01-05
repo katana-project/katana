@@ -4,11 +4,10 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/gabriel-vasile/mimetype"
-	"github.com/go-faster/errors"
 	"github.com/katana-project/ffmpeg/avutil"
+	"github.com/katana-project/katana/internal/errors"
+	"github.com/katana-project/katana/internal/sync"
 	"github.com/katana-project/katana/repo"
-	"github.com/katana-project/katana/repo/internal/sync"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/mux"
 	"go.uber.org/zap"
@@ -37,12 +36,18 @@ func init() {
 			continue // don't include missing formats
 		}
 
-		formats[f] = &format{muxer: muxer, demuxer: demuxer}
+		formats[f] = &format{
+			Format:  f,
+			muxer:   muxer,
+			demuxer: demuxer,
+		}
 	}
 }
 
 // format is a muxer + demuxer combination.
 type format struct {
+	*media.Format
+
 	muxer   *mux.Muxer
 	demuxer *mux.Demuxer
 }
@@ -140,12 +145,12 @@ func (mr *muxRepository) Scan() error {
 		hashes[hash] = struct{}{}
 	}
 
-	err = filepath.Walk(mr.path, func(path string, info fs.FileInfo, err error) error {
+	err = filepath.WalkDir(mr.path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
+		if d.IsDir() {
 			if !strings.HasPrefix(mr.remuxPath, mr.path) && !strings.HasPrefix(mr.transcodePath, mr.path) {
 				return filepath.SkipDir // skip entering - not a directory we want to touch
 			}
@@ -154,7 +159,7 @@ func (mr *muxRepository) Scan() error {
 		}
 
 		var (
-			fileName = info.Name()
+			fileName = d.Name()
 			hash     = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 		)
 		if _, ok := hashes[hash]; !ok { // doesn't exist in repo, remove
@@ -220,12 +225,12 @@ func (mr *muxRepository) remove(path string) error {
 		return errors.Wrap(err, "failed to make checksum")
 	}
 
-	err = filepath.Walk(mr.path, func(path string, info fs.FileInfo, err error) error {
+	err = filepath.WalkDir(mr.path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
+		if d.IsDir() {
 			if !strings.HasPrefix(mr.remuxPath, mr.path) && !strings.HasPrefix(mr.transcodePath, mr.path) {
 				return filepath.SkipDir // skip entering - not a directory we want to touch
 			}
@@ -233,7 +238,7 @@ func (mr *muxRepository) remove(path string) error {
 			return nil
 		}
 
-		fileName := info.Name()
+		fileName := d.Name()
 		if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hash {
 			_, err := mr.mu.Do(path, func() (interface{}, error) {
 				return nil, os.Remove(path)
@@ -256,21 +261,13 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 		return nil, nil
 	}
 
-	// FAST PATH: extension already matches, no need to remux
-	if filepath.Ext(m.Path())[1:] == format.Extension {
+	mFmt := m.Format()
+	// FAST PATH: MIME type already matches
+	if mFmt.MIME == format.MIME {
 		return m, nil
 	}
 
 	path := m.Path()
-
-	mime, err := mimetype.DetectFile(path)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to detect MIME type")
-	}
-	if mime.String() == format.MIME { // or MIME type
-		return m, nil
-	}
-
 	hash, err := mr.makeHash(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make checksum")

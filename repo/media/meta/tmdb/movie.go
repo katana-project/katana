@@ -12,44 +12,40 @@ var (
 )
 
 type movieMetadata struct {
-	data        *tmdb.MovieDetailsOK
-	credits     *tmdb.MovieCreditsOK
-	imageConfig *tmdb.ConfigurationDetailsOKImages
+	data    *tmdb.MovieDetailsResponse
+	credits *tmdb.MovieCreditsResponse
+	config  *tmdb.ConfigurationDetailsResponse
 }
 
 func (mm *movieMetadata) Type() meta.Type {
 	return meta.TypeMovie
 }
 func (mm *movieMetadata) Title() string {
-	return mm.data.GetTitle().Or("")
+	return *mm.data.JSON200.Title
 }
 func (mm *movieMetadata) OriginalTitle() string {
-	return mm.data.GetOriginalTitle().Or("")
+	return *mm.data.JSON200.OriginalTitle
 }
 func (mm *movieMetadata) Overview() string {
-	return mm.data.GetOverview().Or("")
+	return *mm.data.JSON200.Overview
 }
 func (mm *movieMetadata) ReleaseDate() time.Time {
-	if releaseDate, ok := mm.data.GetReleaseDate().Get(); ok {
-		if parsedTime, err := time.Parse(time.DateOnly, releaseDate); err == nil {
-			return parsedTime
-		}
+	if parsedTime, err := time.Parse(time.DateOnly, *mm.data.JSON200.ReleaseDate); err == nil {
+		return parsedTime
 	}
 
 	return invalidTime
 }
-func (mm *movieMetadata) VoteRating() float64 {
-	return mm.data.GetVoteAverage().Or(10)
+func (mm *movieMetadata) VoteRating() float32 {
+	return *mm.data.JSON200.VoteAverage
 }
 func (mm *movieMetadata) Genres() []string {
 	var (
-		genres     = mm.data.GetGenres()
+		genres     = *mm.data.JSON200.Genres
 		genreNames = make([]string, 0, len(genres))
 	)
 	for _, genre := range genres {
-		if name, ok := genre.GetName().Get(); ok {
-			genreNames = append(genreNames, name)
-		}
+		genreNames = append(genreNames, *genre.Name)
 	}
 
 	return genreNames
@@ -59,15 +55,30 @@ func (mm *movieMetadata) Cast() []meta.CastMember {
 		return nil
 	}
 
+	imageUrl := mm.config.JSON200.Images.SecureBaseUrl
+	if imageUrl == nil {
+		imageUrl = mm.config.JSON200.Images.BaseUrl
+	}
+
 	var (
-		cast        = mm.credits.GetCast()
+		cast        = *mm.credits.JSON200.Cast
 		castMembers = make([]meta.CastMember, len(cast))
 	)
 	for i, member := range cast {
-		member0 := member // this needs to be here, a pointer to member ends up at the last value = nasty issues
-		castMembers[i] = &movieCastMember{
-			data:        &member0,
-			imageConfig: mm.imageConfig,
+		var img *image
+		if member.ProfilePath != nil {
+			img = &image{
+				type_:   meta.ImageTypeAvatar,
+				path:    *member.ProfilePath,
+				desc:    *member.Name,
+				baseUrl: *imageUrl,
+			}
+		}
+
+		castMembers[i] = &castMember{
+			name: *member.Name,
+			role: *member.Character,
+			img:  img,
 		}
 	}
 
@@ -75,14 +86,12 @@ func (mm *movieMetadata) Cast() []meta.CastMember {
 }
 func (mm *movieMetadata) Languages() []language.Tag {
 	var (
-		languages    = mm.data.GetSpokenLanguages()
+		languages    = *mm.data.JSON200.SpokenLanguages
 		languageTags = make([]language.Tag, 0, len(languages))
 	)
 	for _, lang := range languages {
-		if code, ok := lang.GetIso6391().Get(); ok {
-			if tag, err := language.Parse(code); err == nil {
-				languageTags = append(languageTags, tag)
-			}
+		if tag, err := language.Parse(*lang.Iso6391); err == nil {
+			languageTags = append(languageTags, tag)
 		}
 	}
 
@@ -90,69 +99,44 @@ func (mm *movieMetadata) Languages() []language.Tag {
 }
 func (mm *movieMetadata) Countries() []language.Region {
 	var (
-		countries = mm.data.GetProductionCountries()
+		countries = *mm.data.JSON200.ProductionCountries
 		regions   = make([]language.Region, 0, len(countries))
 	)
 	for _, country := range countries {
-		if code, ok := country.GetIso31661().Get(); ok {
-			if region, err := language.ParseRegion(code); err == nil {
-				regions = append(regions, region)
-			}
+		if region, err := language.ParseRegion(*country.Iso31661); err == nil {
+			regions = append(regions, region)
 		}
 	}
 
 	return regions
 }
 func (mm *movieMetadata) Images() []meta.Image {
-	if mm.imageConfig == nil {
+	if mm.config == nil {
 		return nil
 	}
 
+	url := mm.config.JSON200.Images.SecureBaseUrl
+	if url == nil {
+		url = mm.config.JSON200.Images.BaseUrl
+	}
+
 	var images []meta.Image
-	if backdropPath, ok := mm.data.GetBackdropPath().Get(); ok {
+	if mm.data.JSON200.BackdropPath != nil {
 		images = append(images, &image{
-			type_:       meta.ImageTypeBackdrop,
-			path:        backdropPath,
-			description: "Backdrop",
-			config:      mm.imageConfig,
+			type_:   meta.ImageTypeBackdrop,
+			path:    *mm.data.JSON200.BackdropPath,
+			desc:    "Backdrop",
+			baseUrl: *url,
 		})
 	}
-	if posterPath, ok := mm.data.GetPosterPath().Get(); ok {
+	if mm.data.JSON200.PosterPath != nil {
 		images = append(images, &image{
-			type_:       meta.ImageTypePoster,
-			path:        posterPath,
-			description: "Poster",
-			config:      mm.imageConfig,
+			type_:   meta.ImageTypePoster,
+			path:    *mm.data.JSON200.PosterPath,
+			desc:    "Poster",
+			baseUrl: *url,
 		})
 	}
 
 	return images
-}
-
-type movieCastMember struct {
-	data        *tmdb.MovieCreditsOKCastItem
-	imageConfig *tmdb.ConfigurationDetailsOKImages
-}
-
-func (mcm *movieCastMember) Name() string {
-	return mcm.data.GetName().Or("")
-}
-func (mcm *movieCastMember) Role() string {
-	return mcm.data.GetCharacter().Or("")
-}
-func (mcm *movieCastMember) Image() meta.Image {
-	if mcm.imageConfig == nil {
-		return nil
-	}
-
-	if path, ok := mcm.data.GetProfilePath().Get(); ok {
-		return &image{
-			type_:       meta.ImageTypeAvatar,
-			path:        path,
-			description: mcm.data.GetName().Or(""),
-			config:      mcm.imageConfig,
-		}
-	}
-
-	return nil
 }

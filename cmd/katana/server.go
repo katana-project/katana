@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/go-faster/errors"
 	"github.com/katana-project/katana/config"
+	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/server"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/multierr"
