@@ -20,13 +20,6 @@ const (
 	UnknownFormat     ErrorType = "unknown_format"
 )
 
-// Defines values for ImageMode.
-const (
-	All   ImageMode = "all"
-	Basic ImageMode = "basic"
-	None  ImageMode = "none"
-)
-
 // Defines values for ImageType.
 const (
 	ImageTypeAvatar   ImageType = "avatar"
@@ -34,13 +27,6 @@ const (
 	ImageTypePoster   ImageType = "poster"
 	ImageTypeStill    ImageType = "still"
 	ImageTypeUnknown  ImageType = "unknown"
-)
-
-// Defines values for MediaFormatType.
-const (
-	Mkv MediaFormatType = "mkv"
-	Mp4 MediaFormatType = "mp4"
-	Raw MediaFormatType = "raw"
 )
 
 // Defines values for MetadataType.
@@ -122,20 +108,19 @@ type Image struct {
 	Type   ImageType `json:"type"`
 }
 
-// ImageMode defines model for ImageMode.
-type ImageMode string
-
 // ImageType defines model for ImageType.
 type ImageType string
 
 // Media defines model for Media.
 type Media struct {
 	// Id The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
-	Id   string      `json:"id"`
+	Id string `json:"id"`
+
+	// Meta The media metadata.
 	Meta *Media_Meta `json:"meta"`
 }
 
-// Media_Meta defines model for Media.Meta.
+// Media_Meta The media metadata.
 type Media_Meta struct {
 	union json.RawMessage
 }
@@ -148,25 +133,8 @@ type MediaFormat struct {
 	// Mime The format MIME type.
 	Mime string `json:"mime"`
 
-	// Name The container format name.
-	Name *string `json:"name"`
-}
-
-// MediaFormatType defines model for MediaFormatType.
-type MediaFormatType string
-
-// MediaVariant defines model for MediaVariant.
-type MediaVariant struct {
-	Format MediaFormat `json:"format"`
-
-	// Id The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
-	Id   string             `json:"id"`
-	Meta *MediaVariant_Meta `json:"meta"`
-}
-
-// MediaVariant_Meta defines model for MediaVariant.Meta.
-type MediaVariant_Meta struct {
-	union json.RawMessage
+	// Name The format name.
+	Name string `json:"name"`
 }
 
 // Metadata defines model for Metadata.
@@ -275,12 +243,6 @@ type SeriesMetadata struct {
 
 	// VoteRating The media like/dislike ratio.
 	VoteRating float32 `json:"vote_rating"`
-}
-
-// GetRepoMediaParams defines parameters for GetRepoMedia.
-type GetRepoMediaParams struct {
-	// Images The image fetching mode.
-	Images *ImageMode `form:"images,omitempty" json:"images,omitempty"`
 }
 
 // AsMetadata returns the union data inside the Media_Meta as a Metadata
@@ -428,155 +390,6 @@ func (t Media_Meta) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Media_Meta) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsMetadata returns the union data inside the MediaVariant_Meta as a Metadata
-func (t MediaVariant_Meta) AsMetadata() (Metadata, error) {
-	var body Metadata
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromMetadata overwrites any union data inside the MediaVariant_Meta as the provided Metadata
-func (t *MediaVariant_Meta) FromMetadata(v Metadata) error {
-	v.Type = "unknown"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeMetadata performs a merge with any union data inside the MediaVariant_Meta, using the provided Metadata
-func (t *MediaVariant_Meta) MergeMetadata(v Metadata) error {
-	v.Type = "unknown"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JsonMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsMovieMetadata returns the union data inside the MediaVariant_Meta as a MovieMetadata
-func (t MediaVariant_Meta) AsMovieMetadata() (MovieMetadata, error) {
-	var body MovieMetadata
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromMovieMetadata overwrites any union data inside the MediaVariant_Meta as the provided MovieMetadata
-func (t *MediaVariant_Meta) FromMovieMetadata(v MovieMetadata) error {
-	v.Type = "movie"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeMovieMetadata performs a merge with any union data inside the MediaVariant_Meta, using the provided MovieMetadata
-func (t *MediaVariant_Meta) MergeMovieMetadata(v MovieMetadata) error {
-	v.Type = "movie"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JsonMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSeriesMetadata returns the union data inside the MediaVariant_Meta as a SeriesMetadata
-func (t MediaVariant_Meta) AsSeriesMetadata() (SeriesMetadata, error) {
-	var body SeriesMetadata
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSeriesMetadata overwrites any union data inside the MediaVariant_Meta as the provided SeriesMetadata
-func (t *MediaVariant_Meta) FromSeriesMetadata(v SeriesMetadata) error {
-	v.Type = "series"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSeriesMetadata performs a merge with any union data inside the MediaVariant_Meta, using the provided SeriesMetadata
-func (t *MediaVariant_Meta) MergeSeriesMetadata(v SeriesMetadata) error {
-	v.Type = "series"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JsonMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsEpisodeMetadata returns the union data inside the MediaVariant_Meta as a EpisodeMetadata
-func (t MediaVariant_Meta) AsEpisodeMetadata() (EpisodeMetadata, error) {
-	var body EpisodeMetadata
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromEpisodeMetadata overwrites any union data inside the MediaVariant_Meta as the provided EpisodeMetadata
-func (t *MediaVariant_Meta) FromEpisodeMetadata(v EpisodeMetadata) error {
-	v.Type = "episode"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeEpisodeMetadata performs a merge with any union data inside the MediaVariant_Meta, using the provided EpisodeMetadata
-func (t *MediaVariant_Meta) MergeEpisodeMetadata(v EpisodeMetadata) error {
-	v.Type = "episode"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JsonMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t MediaVariant_Meta) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"type"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t MediaVariant_Meta) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "episode":
-		return t.AsEpisodeMetadata()
-	case "movie":
-		return t.AsMovieMetadata()
-	case "series":
-		return t.AsSeriesMetadata()
-	case "unknown":
-		return t.AsMetadata()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
-}
-
-func (t MediaVariant_Meta) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *MediaVariant_Meta) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

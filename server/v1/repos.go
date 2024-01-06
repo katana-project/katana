@@ -14,14 +14,25 @@ import (
 	"golang.org/x/text/language"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 )
 
-// defaultStreamContentDisp is the default Content-Disposition header value for streamed content.
-const defaultStreamContentDisp = "inline"
-
 // imageCacheExp is the cache expiration period for non-remote images' data loaded into memory.
 var imageCacheExp = imcache.WithExpiration(5 * time.Minute)
+
+// WrapMode is a collection of option flags (integers ORed together).
+type WrapMode uint
+
+const (
+	// WrapModeBasicImages wraps only basic images (backdrops, posters) for the API model.
+	WrapModeBasicImages WrapMode = 1 << iota
+)
+
+// Has checks whether a WrapMode can be addressed from this one.
+func (wm WrapMode) Has(flag WrapMode) bool {
+	return (wm & flag) != 0
+}
 
 func (s *Server) GetRepos(_ context.Context, _ v1.GetReposRequestObject) (v1.GetReposResponseObject, error) {
 	repos := make([]v1.Repository, 0, len(s.repos))
@@ -47,16 +58,11 @@ func (s *Server) GetRepoMedia(_ context.Context, request v1.GetRepoMediaRequestO
 	}
 
 	var (
-		imageMode = v1.None
-
 		items     = r.Items()
 		repoMedia = make([]v1.Media, len(items))
 	)
-	if request.Params.Images != nil {
-		imageMode = *request.Params.Images
-	}
 	for i, item := range items {
-		m, err := s.wrapMedia(item, imageMode)
+		m, err := s.wrapMedia(item, WrapModeBasicImages)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to wrap media")
 		}
@@ -78,12 +84,27 @@ func (s *Server) GetRepoMediaById(_ context.Context, request v1.GetRepoMediaById
 		return v1.GetRepoMediaById400JSONResponse(v1.Error{Type: v1.NotFound, Description: "media not found"}), nil
 	}
 
-	m0, err := s.wrapMedia(m, v1.All)
+	m0, err := s.wrapMedia(m, 0)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to wrap media")
 	}
 
 	return v1.GetRepoMediaById200JSONResponse(m0), nil
+}
+
+func (s *Server) GetRepoMediaDownload(_ context.Context, request v1.GetRepoMediaDownloadRequestObject) (v1.GetRepoMediaDownloadResponseObject, error) {
+	rp, ok := s.repos[request.RepoId]
+	if !ok {
+		return v1.GetRepoMediaDownload400JSONResponse(v1.Error{Type: v1.NotFound, Description: "repository not found"}), nil
+	}
+
+	m := rp.Get(request.MediaId)
+	if m == nil {
+		return v1.GetRepoMediaDownload400JSONResponse(v1.Error{Type: v1.NotFound, Description: "media not found"}), nil
+	}
+
+	format := m.Format()
+	return &streamResp{path: m.Path(), mime: format.MIME}, nil
 }
 
 func (s *Server) GetRepoMediaStreams(_ context.Context, _ v1.GetRepoMediaStreamsRequestObject) (v1.GetRepoMediaStreamsResponseObject, error) {
@@ -98,14 +119,14 @@ func (s *Server) GetRepoMediaStream(_ context.Context, request v1.GetRepoMediaSt
 	}
 
 	var m media.Media
-	if request.Format == v1.Raw {
+	if request.Format == "raw" {
 		m = rp.Get(request.MediaId)
 	} else {
 		if !rp.Capabilities().Has(repo.CapabilityRemux) {
 			return v1.GetRepoMediaStream400JSONResponse(v1.Error{Type: v1.MissingCapability, Description: "missing 'remux' capability"}), nil
 		}
 
-		format := media.FindFormat(string(request.Format))
+		format := media.FindFormat(request.Format)
 		if format == nil {
 			return v1.GetRepoMediaStream400JSONResponse(v1.Error{Type: v1.UnknownFormat, Description: fmt.Sprintf("unknown format '%s'", request.Format)}), nil
 		}
@@ -129,7 +150,7 @@ type streamResp struct {
 	path, mime string
 }
 
-func (sr *streamResp) VisitGetRepoMediaStreamResponse(w http.ResponseWriter, r *http.Request) error {
+func (sr *streamResp) writeResponse(disp string, w http.ResponseWriter, r *http.Request) error {
 	f, err := os.Open(sr.path)
 	if err != nil {
 		return errors.Wrap(err, "failed to open media")
@@ -142,10 +163,18 @@ func (sr *streamResp) VisitGetRepoMediaStreamResponse(w http.ResponseWriter, r *
 	}
 
 	w.Header().Set("Content-Type", sr.mime)
-	w.Header().Set("Content-Disposition", defaultStreamContentDisp)
+	w.Header().Set("Content-Disposition", disp)
 
 	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
 	return nil
+}
+
+func (sr *streamResp) VisitGetRepoMediaStreamResponse(w http.ResponseWriter, r *http.Request) error {
+	return sr.writeResponse("inline", w, r)
+}
+
+func (sr *streamResp) VisitGetRepoMediaDownloadResponse(w http.ResponseWriter, r *http.Request) error {
+	return sr.writeResponse(fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(sr.path)), w, r)
 }
 
 func (s *Server) wrapRepo(r repo.Repository) v1.Repository {
@@ -174,7 +203,7 @@ func (s *Server) wrapCaps(c repo.Capability) []v1.RepositoryCapability {
 	return caps
 }
 
-func (s *Server) wrapMedia(m media.Media, imageMode v1.ImageMode) (v1.Media, error) {
+func (s *Server) wrapMedia(m media.Media, mode WrapMode) (v1.Media, error) {
 	var (
 		err error
 
@@ -182,7 +211,7 @@ func (s *Server) wrapMedia(m media.Media, imageMode v1.ImageMode) (v1.Media, err
 		mediaMeta *v1.Media_Meta
 	)
 	if repoMeta != nil {
-		mediaMeta, err = s.wrapMediaMeta(repoMeta, imageMode)
+		mediaMeta, err = s.wrapMediaMeta(repoMeta, mode)
 		if err != nil {
 			return v1.Media{}, err
 		}
@@ -194,7 +223,7 @@ func (s *Server) wrapMedia(m media.Media, imageMode v1.ImageMode) (v1.Media, err
 	}, nil
 }
 
-func (s *Server) wrapMediaMeta(m meta.Metadata, imageMode v1.ImageMode) (*v1.Media_Meta, error) {
+func (s *Server) wrapMediaMeta(m meta.Metadata, mode WrapMode) (*v1.Media_Meta, error) {
 	var (
 		mm  = &v1.Media_Meta{}
 		err error
@@ -202,54 +231,50 @@ func (s *Server) wrapMediaMeta(m meta.Metadata, imageMode v1.ImageMode) (*v1.Med
 
 	switch metaVariant := m.(type) {
 	case meta.EpisodeMetadata:
-		err = mm.FromEpisodeMetadata(s.wrapEpisodeMeta(metaVariant, imageMode))
+		err = mm.FromEpisodeMetadata(s.wrapEpisodeMeta(metaVariant, mode))
 	case meta.MovieOrSeriesMetadata:
 		switch metaVariant.Type() {
 		case meta.TypeMovie:
-			err = mm.FromMovieMetadata(s.wrapMovieMeta(metaVariant, imageMode))
+			err = mm.FromMovieMetadata(s.wrapMovieMeta(metaVariant, mode))
 		case meta.TypeSeries:
-			err = mm.FromSeriesMetadata(s.wrapSeriesMeta(metaVariant, imageMode))
+			err = mm.FromSeriesMetadata(s.wrapSeriesMeta(metaVariant, mode))
 		default: // the metadata instance is breaking its contract, just force it to be generic
-			err = mm.FromMetadata(s.wrapMeta(metaVariant, imageMode))
+			err = mm.FromMetadata(s.wrapMeta(metaVariant, mode))
 		}
 	default:
-		err = mm.FromMetadata(s.wrapMeta(metaVariant, imageMode))
+		err = mm.FromMetadata(s.wrapMeta(metaVariant, mode))
 	}
 
 	return mm, err
 }
 
-func (s *Server) wrapMovieMeta(m meta.MovieOrSeriesMetadata, imageMode v1.ImageMode) v1.MovieMetadata {
+func (s *Server) wrapMovieMeta(m meta.MovieOrSeriesMetadata, mode WrapMode) v1.MovieMetadata {
 	return v1.MovieMetadata{
 		Title:         m.Title(),
 		OriginalTitle: makeOptString(m.OriginalTitle()),
 		Overview:      makeOptString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.wrapImages(m.Images(), imageMode),
+		Images:        s.wrapImages(m.Images(), mode),
 		Genres:        m.Genres(),
-		Cast:          s.wrapCastMembers(m.Cast(), imageMode),
+		Cast:          s.wrapCastMembers(m.Cast(), mode),
 		Languages:     s.wrapLanguages(m.Languages()),
 		Countries:     s.wrapCountries(m.Countries()),
 	}
 }
 
-func (s *Server) wrapImages(ims []meta.Image, imageMode v1.ImageMode) []v1.Image {
-	if imageMode == v1.None {
-		return nil
-	}
-
+func (s *Server) wrapImages(ims []meta.Image, mode WrapMode) []v1.Image {
 	var images []v1.Image
 	for _, i := range ims {
 		type_ := i.Type()
-		if imageMode == v1.Basic && type_ != meta.ImageTypeBackdrop && type_ != meta.ImageTypePoster {
+		if mode.Has(WrapModeBasicImages) && type_ != meta.ImageTypeBackdrop && type_ != meta.ImageTypePoster {
 			continue // basic only sends backdrops and posters
 		}
 
 		im, err := s.wrapImage(i)
 		if err != nil {
 			s.logger.Error(
-				"failed to make image, skipping",
+				"failed to read image, skipping",
 				zap.String("path", i.Path()),
 				zap.Bool("remote", i.Remote()),
 				zap.String("description", i.Description()),
@@ -308,7 +333,7 @@ func (s *Server) wrapImage(i meta.Image) (v1.Image, error) {
 	}, nil
 }
 
-func (s *Server) wrapCastMembers(cms []meta.CastMember, imageMode v1.ImageMode) []v1.CastMember {
+func (s *Server) wrapCastMembers(cms []meta.CastMember, mode WrapMode) []v1.CastMember {
 	if cms == nil {
 		return nil
 	}
@@ -319,11 +344,11 @@ func (s *Server) wrapCastMembers(cms []meta.CastMember, imageMode v1.ImageMode) 
 			image  = cm.Image()
 			image0 *v1.Image
 		)
-		if image != nil && imageMode == v1.All {
+		if image != nil && !mode.Has(WrapModeBasicImages) {
 			im, err := s.wrapImage(image)
 			if err != nil {
 				s.logger.Error(
-					"failed to make cast member image, skipping",
+					"failed to read cast member image, skipping",
 					zap.String("path", image.Path()),
 					zap.Bool("remote", image.Remote()),
 					zap.String("description", image.Description()),
@@ -370,42 +395,42 @@ func (s *Server) wrapCountries(rgs []language.Region) []string {
 	return regions
 }
 
-func (s *Server) wrapSeriesMeta(m meta.MovieOrSeriesMetadata, imageMode v1.ImageMode) v1.SeriesMetadata {
+func (s *Server) wrapSeriesMeta(m meta.MovieOrSeriesMetadata, mode WrapMode) v1.SeriesMetadata {
 	return v1.SeriesMetadata{
 		Title:         m.Title(),
 		OriginalTitle: makeOptString(m.OriginalTitle()),
 		Overview:      makeOptString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.wrapImages(m.Images(), imageMode),
+		Images:        s.wrapImages(m.Images(), mode),
 		Genres:        m.Genres(),
-		Cast:          s.wrapCastMembers(m.Cast(), imageMode),
+		Cast:          s.wrapCastMembers(m.Cast(), mode),
 		Languages:     s.wrapLanguages(m.Languages()),
 		Countries:     s.wrapCountries(m.Countries()),
 	}
 }
 
-func (s *Server) wrapEpisodeMeta(m meta.EpisodeMetadata, imageMode v1.ImageMode) v1.EpisodeMetadata {
+func (s *Server) wrapEpisodeMeta(m meta.EpisodeMetadata, mode WrapMode) v1.EpisodeMetadata {
 	return v1.EpisodeMetadata{
 		Title:         m.Title(),
 		OriginalTitle: makeOptString(m.OriginalTitle()),
 		Overview:      makeOptString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.wrapImages(m.Images(), imageMode),
-		Series:        s.wrapSeriesMeta(m.Series(), imageMode),
+		Images:        s.wrapImages(m.Images(), mode),
+		Series:        s.wrapSeriesMeta(m.Series(), mode),
 		Season:        m.Season(),
 		Episode:       m.Episode(),
 	}
 }
 
-func (s *Server) wrapMeta(m meta.Metadata, imageMode v1.ImageMode) v1.Metadata {
+func (s *Server) wrapMeta(m meta.Metadata, mode WrapMode) v1.Metadata {
 	return v1.Metadata{
 		Title:         m.Title(),
 		OriginalTitle: makeOptString(m.OriginalTitle()),
 		Overview:      makeOptString(m.Overview()),
 		ReleaseDate:   m.ReleaseDate(),
 		VoteRating:    m.VoteRating(),
-		Images:        s.wrapImages(m.Images(), imageMode),
+		Images:        s.wrapImages(m.Images(), mode),
 	}
 }

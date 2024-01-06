@@ -59,7 +59,9 @@ paths:
   /repos/{id}/media:
     get:
       summary: Lists a repository's media.
-      description: Gets a repository by its ID and lists its media.
+      description: |
+        Gets a repository by its ID and lists its media.
+        Only basic images are sent for this endpoint - backdrops and posters.
       tags:
         - repositories
         - media
@@ -72,13 +74,6 @@ paths:
           schema:
             type: string
             pattern: ^[a-z0-9-_]+$
-        - in: query
-          name: images
-          description: The image fetching mode.
-          required: false
-          schema:
-            $ref: '#/components/schemas/ImageMode'
-            default: none
       responses:
         '200':
           description: Successful response
@@ -130,6 +125,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /repos/{repoId}/media/{mediaId}/download:
+    get:
+      summary: Downloads media.
+      description: |
+        Gets media by its ID in a repository and returns an HTTP media stream of the file.
+        Equivalent to the `getRepoMediaStream` operation with the `raw` format and an `attachment` Content-Disposition.
+      tags:
+        - repositories
+        - media
+      operationId: getRepoMediaDownload
+      parameters:
+        - in: path
+          name: repoId
+          description: The repository ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+        - in: path
+          name: mediaId
+          description: The media ID, alphanumeric, lowercase, non-blank ([a-z0-9-_]).
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z0-9-_]+$
+      responses:
+        '200':
+          description: Successful response
+          headers:
+            Content-Type:
+              schema:
+                type: string
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            schema:
+              type: string
+              format: binary
+        '400':
+          description: Repository or media not found, or unknown format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /repos/{repoId}/media/{mediaId}/stream:
     get:
       summary: Lists the available variants of a repository's media.
@@ -161,7 +201,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MediaVariant'
+                  $ref: '#/components/schemas/MediaFormat'
         '400':
           description: Repository or media not found
           content:
@@ -198,7 +238,8 @@ paths:
           description: The media format, remuxing may occur if not "raw".
           required: true
           schema:
-            $ref: '#/components/schemas/MediaFormatType'
+            type: string
+            pattern: ^[a-z0-9-_]+$
       responses:
         '200':
           description: Successful response
@@ -319,12 +360,6 @@ components:
           description: The promotional images of the media.
           items:
             $ref: '#/components/schemas/Image'
-    ImageMode:
-      type: string
-      enum:
-        - none
-        - basic
-        - all
     ImageType:
       type: string
       enum:
@@ -449,12 +484,6 @@ components:
               type: integer
               description: The episode number.
               min: 0
-    MediaFormatType:
-      type: string
-      enum:
-        - raw
-        - mp4
-        - mkv
     MediaFormat:
       type: object
       required:
@@ -464,8 +493,7 @@ components:
       properties:
         name:
           type: string
-          description: The container format name.
-          nullable: true
+          description: The format name.
         mime:
           type: string
           description: The format MIME type.
@@ -496,12 +524,4 @@ components:
               series: '#/components/schemas/SeriesMetadata'
               episode: '#/components/schemas/EpisodeMetadata'
           nullable: true
-    MediaVariant:
-      allOf:
-        - $ref: '#/components/schemas/Media'
-        - type: object
-          required:
-            - format
-          properties:
-            format:
-              $ref: '#/components/schemas/MediaFormat'
+          description: The media metadata.

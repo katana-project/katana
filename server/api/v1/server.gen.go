@@ -25,16 +25,19 @@ type ServerInterface interface {
 	GetRepoById(w http.ResponseWriter, r *http.Request, id string)
 	// Lists a repository's media.
 	// (GET /repos/{id}/media)
-	GetRepoMedia(w http.ResponseWriter, r *http.Request, id string, params GetRepoMediaParams)
+	GetRepoMedia(w http.ResponseWriter, r *http.Request, id string)
 	// Gets a repository's media.
 	// (GET /repos/{repoId}/media/{mediaId})
 	GetRepoMediaById(w http.ResponseWriter, r *http.Request, repoId string, mediaId string)
+	// Downloads media.
+	// (GET /repos/{repoId}/media/{mediaId}/download)
+	GetRepoMediaDownload(w http.ResponseWriter, r *http.Request, repoId string, mediaId string)
 	// Lists the available variants of a repository's media.
 	// (GET /repos/{repoId}/media/{mediaId}/stream)
 	GetRepoMediaStreams(w http.ResponseWriter, r *http.Request, repoId string, mediaId string)
 	// Gets a HTTP media stream.
 	// (GET /repos/{repoId}/media/{mediaId}/stream/{format})
-	GetRepoMediaStream(w http.ResponseWriter, r *http.Request, repoId string, mediaId string, format MediaFormatType)
+	GetRepoMediaStream(w http.ResponseWriter, r *http.Request, repoId string, mediaId string, format string)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -55,13 +58,19 @@ func (_ Unimplemented) GetRepoById(w http.ResponseWriter, r *http.Request, id st
 
 // Lists a repository's media.
 // (GET /repos/{id}/media)
-func (_ Unimplemented) GetRepoMedia(w http.ResponseWriter, r *http.Request, id string, params GetRepoMediaParams) {
+func (_ Unimplemented) GetRepoMedia(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Gets a repository's media.
 // (GET /repos/{repoId}/media/{mediaId})
 func (_ Unimplemented) GetRepoMediaById(w http.ResponseWriter, r *http.Request, repoId string, mediaId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Downloads media.
+// (GET /repos/{repoId}/media/{mediaId}/download)
+func (_ Unimplemented) GetRepoMediaDownload(w http.ResponseWriter, r *http.Request, repoId string, mediaId string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -73,7 +82,7 @@ func (_ Unimplemented) GetRepoMediaStreams(w http.ResponseWriter, r *http.Reques
 
 // Gets a HTTP media stream.
 // (GET /repos/{repoId}/media/{mediaId}/stream/{format})
-func (_ Unimplemented) GetRepoMediaStream(w http.ResponseWriter, r *http.Request, repoId string, mediaId string, format MediaFormatType) {
+func (_ Unimplemented) GetRepoMediaStream(w http.ResponseWriter, r *http.Request, repoId string, mediaId string, format string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -142,19 +151,8 @@ func (siw *ServerInterfaceWrapper) GetRepoMedia(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetRepoMediaParams
-
-	// ------------- Optional query parameter "images" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "images", r.URL.Query(), &params.Images)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "images", Err: err})
-		return
-	}
-
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetRepoMedia(w, r, id, params)
+		siw.Handler.GetRepoMedia(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -190,6 +188,41 @@ func (siw *ServerInterfaceWrapper) GetRepoMediaById(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetRepoMediaById(w, r, repoId, mediaId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// GetRepoMediaDownload operation middleware
+func (siw *ServerInterfaceWrapper) GetRepoMediaDownload(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var err error
+
+	// ------------- Path parameter "repoId" -------------
+	var repoId string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "repoId", runtime.ParamLocationPath, chi.URLParam(r, "repoId"), &repoId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "repoId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "mediaId" -------------
+	var mediaId string
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "mediaId", runtime.ParamLocationPath, chi.URLParam(r, "mediaId"), &mediaId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "mediaId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRepoMediaDownload(w, r, repoId, mediaId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -259,7 +292,7 @@ func (siw *ServerInterfaceWrapper) GetRepoMediaStream(w http.ResponseWriter, r *
 	}
 
 	// ------------- Path parameter "format" -------------
-	var format MediaFormatType
+	var format string
 
 	err = runtime.BindStyledParameterWithLocation("simple", false, "format", runtime.ParamLocationPath, chi.URLParam(r, "format"), &format)
 	if err != nil {
@@ -404,6 +437,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/repos/{repoId}/media/{mediaId}", wrapper.GetRepoMediaById)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/repos/{repoId}/media/{mediaId}/download", wrapper.GetRepoMediaDownload)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/repos/{repoId}/media/{mediaId}/stream", wrapper.GetRepoMediaStreams)
 	})
 	r.Group(func(r chi.Router) {
@@ -456,8 +492,7 @@ func (response GetRepoById400JSONResponse) VisitGetRepoByIdResponse(w http.Respo
 }
 
 type GetRepoMediaRequestObject struct {
-	Id     string `json:"id"`
-	Params GetRepoMediaParams
+	Id string `json:"id"`
 }
 
 type GetRepoMediaResponseObject interface {
@@ -509,6 +544,51 @@ func (response GetRepoMediaById400JSONResponse) VisitGetRepoMediaByIdResponse(w 
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetRepoMediaDownloadRequestObject struct {
+	RepoId  string `json:"repoId"`
+	MediaId string `json:"mediaId"`
+}
+
+type GetRepoMediaDownloadResponseObject interface {
+	VisitGetRepoMediaDownloadResponse(w http.ResponseWriter, r *http.Request) error
+}
+
+type GetRepoMediaDownload200ResponseHeaders struct {
+	ContentDisposition string
+	ContentType        string
+}
+
+type GetRepoMediaDownload200SchemaResponse struct {
+	Body          io.Reader
+	Headers       GetRepoMediaDownload200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetRepoMediaDownload200SchemaResponse) VisitGetRepoMediaDownloadResponse(w http.ResponseWriter, _ *http.Request) error {
+	w.Header().Set("Content-Type", "schema")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("Content-Type", fmt.Sprint(response.Headers.ContentType))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetRepoMediaDownload400JSONResponse Error
+
+func (response GetRepoMediaDownload400JSONResponse) VisitGetRepoMediaDownloadResponse(w http.ResponseWriter, _ *http.Request) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetRepoMediaStreamsRequestObject struct {
 	RepoId  string `json:"repoId"`
 	MediaId string `json:"mediaId"`
@@ -518,7 +598,7 @@ type GetRepoMediaStreamsResponseObject interface {
 	VisitGetRepoMediaStreamsResponse(w http.ResponseWriter, r *http.Request) error
 }
 
-type GetRepoMediaStreams200JSONResponse []MediaVariant
+type GetRepoMediaStreams200JSONResponse []MediaFormat
 
 func (response GetRepoMediaStreams200JSONResponse) VisitGetRepoMediaStreamsResponse(w http.ResponseWriter, _ *http.Request) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -537,9 +617,9 @@ func (response GetRepoMediaStreams400JSONResponse) VisitGetRepoMediaStreamsRespo
 }
 
 type GetRepoMediaStreamRequestObject struct {
-	RepoId  string          `json:"repoId"`
-	MediaId string          `json:"mediaId"`
-	Format  MediaFormatType `json:"format"`
+	RepoId  string `json:"repoId"`
+	MediaId string `json:"mediaId"`
+	Format  string `json:"format"`
 }
 
 type GetRepoMediaStreamResponseObject interface {
@@ -596,6 +676,9 @@ type StrictServerInterface interface {
 	// Gets a repository's media.
 	// (GET /repos/{repoId}/media/{mediaId})
 	GetRepoMediaById(ctx context.Context, request GetRepoMediaByIdRequestObject) (GetRepoMediaByIdResponseObject, error)
+	// Downloads media.
+	// (GET /repos/{repoId}/media/{mediaId}/download)
+	GetRepoMediaDownload(ctx context.Context, request GetRepoMediaDownloadRequestObject) (GetRepoMediaDownloadResponseObject, error)
 	// Lists the available variants of a repository's media.
 	// (GET /repos/{repoId}/media/{mediaId}/stream)
 	GetRepoMediaStreams(ctx context.Context, request GetRepoMediaStreamsRequestObject) (GetRepoMediaStreamsResponseObject, error)
@@ -683,11 +766,10 @@ func (sh *strictHandler) GetRepoById(w http.ResponseWriter, r *http.Request, id 
 }
 
 // GetRepoMedia operation middleware
-func (sh *strictHandler) GetRepoMedia(w http.ResponseWriter, r *http.Request, id string, params GetRepoMediaParams) {
+func (sh *strictHandler) GetRepoMedia(w http.ResponseWriter, r *http.Request, id string) {
 	var request GetRepoMediaRequestObject
 
 	request.Id = id
-	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetRepoMedia(ctx, request.(GetRepoMediaRequestObject))
@@ -736,6 +818,33 @@ func (sh *strictHandler) GetRepoMediaById(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GetRepoMediaDownload operation middleware
+func (sh *strictHandler) GetRepoMediaDownload(w http.ResponseWriter, r *http.Request, repoId string, mediaId string) {
+	var request GetRepoMediaDownloadRequestObject
+
+	request.RepoId = repoId
+	request.MediaId = mediaId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRepoMediaDownload(ctx, request.(GetRepoMediaDownloadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRepoMediaDownload")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRepoMediaDownloadResponseObject); ok {
+		if err := validResponse.VisitGetRepoMediaDownloadResponse(w, r); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetRepoMediaStreams operation middleware
 func (sh *strictHandler) GetRepoMediaStreams(w http.ResponseWriter, r *http.Request, repoId string, mediaId string) {
 	var request GetRepoMediaStreamsRequestObject
@@ -764,7 +873,7 @@ func (sh *strictHandler) GetRepoMediaStreams(w http.ResponseWriter, r *http.Requ
 }
 
 // GetRepoMediaStream operation middleware
-func (sh *strictHandler) GetRepoMediaStream(w http.ResponseWriter, r *http.Request, repoId string, mediaId string, format MediaFormatType) {
+func (sh *strictHandler) GetRepoMediaStream(w http.ResponseWriter, r *http.Request, repoId string, mediaId string, format string) {
 	var request GetRepoMediaStreamRequestObject
 
 	request.RepoId = repoId

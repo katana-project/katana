@@ -60,8 +60,8 @@ func Capabilities(caps []config.Capability) Capability {
 }
 
 // Has checks whether a Capability can be addressed from this one.
-func (rc Capability) Has(flag Capability) bool {
-	return (rc & flag) != 0
+func (c Capability) Has(flag Capability) bool {
+	return (c & flag) != 0
 }
 
 // Repository is a media repository.
