@@ -27,6 +27,8 @@ github.com/katana-project/mux v0.0.0-20231223150437-1fadc4d6f105 h1:nLWVHui89Hhb
 github.com/katana-project/mux v0.0.0-20231223150437-1fadc4d6f105/go.mod h1:aoynxJgiKyLIbCpKPHir94pfy8seWyxVPAbWughHEF0=
 github.com/katana-project/tmdb v0.0.0-20240103145344-2994427c25f0 h1:8DYy+5rqDLGILArlsYeAWZ4FusEN6B82+T8ya4vBgSw=
 github.com/katana-project/tmdb v0.0.0-20240103145344-2994427c25f0/go.mod h1:tlxgzlKCwcrviFhtyXDxx7CVvXfiyw4j/bBn9JeiIxk=
+github.com/katana-project/tmdb v0.0.0-20240107120454-c639a67b67e5 h1:DjT9A0TQSRy3+LfnGFBw4EKa9J3/y/cP6Jn5NpfB5YA=
+github.com/katana-project/tmdb v0.0.0-20240107120454-c639a67b67e5/go.mod h1:tlxgzlKCwcrviFhtyXDxx7CVvXfiyw4j/bBn9JeiIxk=
 github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/oapi-codegen/runtime v1.1.1 h1:EXLHh0DXIJnWhdRPN2w4MXAzFyE4CskzhNLUmtpMYro=

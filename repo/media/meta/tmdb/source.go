@@ -33,22 +33,24 @@ func NewSource(client tmdb.ClientWithResponsesInterface, lang language.Tag, cach
 
 // FromFile tries to resolve the file name as a query.
 func (s *source) FromFile(path string) (meta.Metadata, error) {
-	fileName := filepath.Base(path)
-	nameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	var (
+		fileName       = filepath.Base(path)
+		nameWithoutExt = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	)
 
-	return s.FromQuery(meta.NewQuery(nameWithoutExt, meta.TypeUnknown, 0, 0))
+	return s.FromQuery(&meta.Query{Query: nameWithoutExt, Type: meta.TypeUnknown, Season: 0, Episode: 0})
 }
 
 // FromQuery tries to resolve the query using The Movie Database's API.
-func (s *source) FromQuery(query meta.Query) (meta.Metadata, error) {
-	switch query.Type() {
+func (s *source) FromQuery(query *meta.Query) (meta.Metadata, error) {
+	switch query.Type {
 	case meta.TypeMovie:
-		return s.searchMovie(query.Query())
+		return s.searchMovie(query.Query)
 	case meta.TypeSeries, meta.TypeEpisode:
-		return s.searchSeries(query.Query(), query.Season(), query.Episode())
+		return s.searchSeries(query.Query, query.Season, query.Episode)
 	}
 
-	return s.searchMulti(query.Query())
+	return s.searchMulti(query.Query)
 }
 
 func (s *source) fetchConfiguration() (*tmdb.ConfigurationDetailsResponse, error) {
@@ -246,15 +248,10 @@ func (s *source) fetchEpisode(id, season, episode int) (meta.EpisodeMetadata, er
 	return m, nil
 }
 
-type httpStatus interface {
-	Status() string
-	StatusCode() int
-}
-
-func (s *source) checkStatus(hts httpStatus) error {
-	code := hts.StatusCode()
+func (s *source) checkStatus(resp tmdb.Response) error {
+	code := resp.StatusCode()
 	if code < 200 || code > 299 {
-		return fmt.Errorf("non-2xx status code %d: %s", code, hts.Status())
+		return fmt.Errorf("non-2xx status code %d: %s", code, resp.Status())
 	}
 
 	return nil

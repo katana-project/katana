@@ -11,8 +11,8 @@ func (ls *loggingSource) FromFile(path string) (Metadata, error) {
 	return nil, nil
 }
 
-func (ls *loggingSource) FromQuery(query Query) (Metadata, error) {
-	ls.t.Logf("query %s, type %d, season %d, episode %d", query.Query(), query.Type(), query.Season(), query.Episode())
+func (ls *loggingSource) FromQuery(query *Query) (Metadata, error) {
+	ls.t.Logf("query %s, type %d, season %d, episode %d", query.Query, query.Type, query.Season, query.Episode)
 	return nil, nil
 }
 

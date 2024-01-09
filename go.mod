@@ -11,7 +11,7 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/katana-project/ffmpeg v0.0.0-20231126124327-2d1a6344442d
 	github.com/katana-project/mux v0.0.0-20231223150437-1fadc4d6f105
-	github.com/katana-project/tmdb v0.0.0-20240103145344-2994427c25f0
+	github.com/katana-project/tmdb v0.0.0-20240107120454-c639a67b67e5
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/urfave/cli/v2 v2.27.1

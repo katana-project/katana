@@ -14,8 +14,6 @@ import (
 )
 
 var (
-	// tmdbApiUrl is the default base URL of the TMDB API.
-	tmdbApiUrl = "https://api.themoviedb.org/"
 	// tmdbDefaultCacheExp is the default API response cache expiration.
 	tmdbDefaultCacheExp = imcache.WithExpiration(5 * time.Minute)
 )
@@ -45,7 +43,7 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 
 		url := parsedOpts.URL
 		if url == "" { // zero value
-			url = tmdbApiUrl
+			url = tmdbClient.DefaultServerBaseURL
 		}
 
 		client, err := tmdbClient.NewClientWithResponses(url, tmdbClient.WithToken(parsedOpts.Key))

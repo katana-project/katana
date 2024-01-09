@@ -24,67 +24,19 @@ type Source interface {
 	// FromFile tries to resolve metadata for a media file, may return nil.
 	FromFile(path string) (Metadata, error)
 	// FromQuery tries to resolve metadata for a custom query, may return nil.
-	FromQuery(query Query) (Metadata, error)
+	FromQuery(query *Query) (Metadata, error)
 }
 
 // Query is a search query for a movie or a series episode.
-type Query interface {
-	// Query returns the string used for searching the movie or series.
-	Query() string
-	// Type returns the type of metadata to search for, 0 (TypeUnknown) searches for all media.
-	Type() Type
-	// Season returns the season number, 0 means don't search for a specific episode.
-	Season() int
-	// Episode returns the episode number in the season, 0 means don't search for a specific episode.
-	Episode() int
-}
-
-// BasicQuery is a JSON serializable Query, with set values.
-type BasicQuery struct {
-	Query_   string `json:"query"`
-	Type_    Type   `json:"type"`
-	Season_  int    `json:"season"`
-	Episode_ int    `json:"episode"`
-}
-
-// NewQuery creates a Query with set values.
-func NewQuery(query string, type_ Type, season, episode int) Query {
-	return &BasicQuery{
-		Query_:   query,
-		Type_:    type_,
-		Season_:  season,
-		Episode_: episode,
-	}
-}
-
-// NewBasicQuery wraps a Query object into BasicQuery.
-func NewBasicQuery(mq Query) *BasicQuery {
-	if mq == nil {
-		return nil
-	}
-	if bmq, ok := mq.(*BasicQuery); ok {
-		return bmq
-	}
-
-	return &BasicQuery{
-		Query_:   mq.Query(),
-		Type_:    mq.Type(),
-		Season_:  mq.Season(),
-		Episode_: mq.Episode(),
-	}
-}
-
-func (bmq *BasicQuery) Query() string {
-	return bmq.Query_
-}
-func (bmq *BasicQuery) Type() Type {
-	return bmq.Type_
-}
-func (bmq *BasicQuery) Season() int {
-	return bmq.Season_
-}
-func (bmq *BasicQuery) Episode() int {
-	return bmq.Episode_
+type Query struct {
+	// Query is the string used for searching the movie or series.
+	Query string `json:"query"`
+	// Type is the type of metadata to search for, 0 (TypeUnknown) searches for all media.
+	Type Type `json:"type"`
+	// Season is the season number, 0 means don't search for a specific episode.
+	Season int `json:"season"`
+	// Episode is the episode number in the season, 0 means don't search for a specific episode.
+	Episode int `json:"episode"`
 }
 
 // dummySource is a Source that discovers nothing.
@@ -102,7 +54,7 @@ func (ds *dummySource) FromFile(_ string) (Metadata, error) {
 }
 
 // FromQuery always returns nil.
-func (ds *dummySource) FromQuery(_ Query) (Metadata, error) {
+func (ds *dummySource) FromQuery(_ *Query) (Metadata, error) {
 	return nil, nil
 }
 
@@ -124,46 +76,41 @@ func (lms *literalSource) FromFile(path string) (Metadata, error) {
 }
 
 // FromQuery returns a literal metadata representation of the query.
-func (lms *literalSource) FromQuery(query Query) (Metadata, error) {
-	var (
-		parentType = query.Type()
-		season     = query.Season()
-		episode    = query.Episode()
-	)
-
-	if season >= 0 && episode >= 0 {
+func (lms *literalSource) FromQuery(query *Query) (Metadata, error) {
+	parentType := query.Type
+	if query.Season >= 0 && query.Episode >= 0 {
 		parentType = TypeSeries
 	}
 
-	genericMeta := NewMetadata(parentType, query.Query(), query.Query(), "", time.Now(), 10, nil)
-	if season >= 0 && episode >= 0 {
-		title := "S" + fmt.Sprintf("%02d", season) + "E" + fmt.Sprintf("%02d", episode)
+	genericMeta := NewMetadata(parentType, query.Query, query.Query, "", time.Now(), 10, nil)
+	if query.Season >= 0 && query.Episode >= 0 {
+		info := fmt.Sprintf("S%02dE%02d", query.Season, query.Episode)
 
 		return NewEpisodeMetadata(
-			NewMetadata(TypeEpisode, title, title, "", genericMeta.ReleaseDate(), 10, nil),
+			NewMetadata(TypeEpisode, info, info, "", genericMeta.ReleaseDate(), 10, nil),
 			NewMovieOrSeriesMetadata(genericMeta, nil, nil, nil, nil),
-			season,
-			episode,
+			query.Season,
+			query.Episode,
 		), nil
 	}
 
 	return genericMeta, nil
 }
 
-// CompositeSource is a Source that tries to resolve metadata from multiple sources.
-type CompositeSource struct {
-	// Sources are the sources to be resolved from, iterated in order.
-	Sources []Source
+// compositeSource is a Source that tries to resolve metadata from multiple sources.
+type compositeSource struct {
+	// sources are the sources to be resolved from, iterated in order.
+	sources []Source
 }
 
 // NewCompositeSource creates a metadata source that resolves results from multiple sources.
 func NewCompositeSource(metaSources ...Source) Source {
-	return &CompositeSource{Sources: metaSources}
+	return &compositeSource{sources: metaSources}
 }
 
 // FromFile tries to resolve metadata for a media file from multiple sources, may return nil.
-func (cs *CompositeSource) FromFile(path string) (Metadata, error) {
-	for _, source := range cs.Sources {
+func (cs *compositeSource) FromFile(path string) (Metadata, error) {
+	for _, source := range cs.sources {
 		m, err := source.FromFile(path)
 		if err != nil {
 			return nil, err
@@ -177,8 +124,8 @@ func (cs *CompositeSource) FromFile(path string) (Metadata, error) {
 }
 
 // FromQuery tries to resolve metadata for a custom query from multiple sources, may return nil.
-func (cs *CompositeSource) FromQuery(query Query) (Metadata, error) {
-	for _, source := range cs.Sources {
+func (cs *compositeSource) FromQuery(query *Query) (Metadata, error) {
+	for _, source := range cs.sources {
 		m, err := source.FromQuery(query)
 		if err != nil {
 			return nil, err
@@ -203,29 +150,32 @@ func NewFileAnalysisSource(metaSource Source) Source {
 
 // FromFile tries to create a metadata query from a file and resolve it using FromQuery.
 func (fas *fileAnalysisSource) FromFile(path string) (Metadata, error) {
-	fileName := filepath.Base(path)
-	nameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
-
 	var (
-		type_      = TypeUnknown
-		season     = -1
-		episode    = -1
-		dirtyQuery = nameWithoutExt
+		fileName       = filepath.Base(path)
+		nameWithoutExt = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+
+		query = &Query{
+			Query:   nameWithoutExt,
+			Type:    TypeUnknown,
+			Season:  -1,
+			Episode: -1,
+		}
 	)
 
-	episodeGroups := episodePattern.FindStringSubmatch(dirtyQuery)
+	episodeGroups := episodePattern.FindStringSubmatch(nameWithoutExt)
 	if episodeGroups != nil { // presume episode
-		type_ = TypeEpisode
-		season, _ = strconv.Atoi(strings.TrimLeft(episodeGroups[1], "0"))  // will never error
-		episode, _ = strconv.Atoi(strings.TrimLeft(episodeGroups[2], "0")) // will never error
-		dirtyQuery = nameWithoutExt[:strings.Index(dirtyQuery, episodeGroups[0])]
+		query.Query = nameWithoutExt[:strings.Index(nameWithoutExt, episodeGroups[0])]
+		query.Type = TypeEpisode
+		query.Season, _ = strconv.Atoi(strings.TrimLeft(episodeGroups[1], "0"))  // will never error
+		query.Episode, _ = strconv.Atoi(strings.TrimLeft(episodeGroups[2], "0")) // will never error
 	} else {
-		dirtyQuery = resolutionPattern.ReplaceAllLiteralString(nameWithoutExt, "") // step 1: remove resolution
-		dirtyQuery = encodingPattern.ReplaceAllLiteralString(dirtyQuery, "")       // step 2: remove encoding format/codec
-		dirtyQuery = stripBracketLike(dirtyQuery)
+		query.Query = resolutionPattern.ReplaceAllLiteralString(nameWithoutExt, "") // step 1: remove resolution
+		query.Query = encodingPattern.ReplaceAllLiteralString(query.Query, "")      // step 2: remove encoding format/codec
+		query.Query = stripBracketLike(query.Query)
 	}
 
-	return fas.FromQuery(NewQuery(strings.Join(strings.Fields(commonDelimiterReplacer.Replace(dirtyQuery)), " "), type_, season, episode))
+	query.Query = strings.Join(strings.Fields(commonDelimiterReplacer.Replace(query.Query)), " ")
+	return fas.FromQuery(query)
 }
 
 func stripBracketLike(s string) string {
