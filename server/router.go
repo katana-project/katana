@@ -7,8 +7,10 @@ import (
 	"github.com/katana-project/katana/config"
 	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo"
+	"github.com/katana-project/katana/repo/index"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/katana/repo/mux"
+	"github.com/katana-project/katana/repo/watch"
 	"github.com/katana-project/katana/server/v1"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
@@ -74,24 +76,15 @@ func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (HandlerCloser,
 
 		metaSources := make([]meta.Source, 0, len(repoConfig.Sources))
 		for sourceName, options := range repoConfig.Sources {
-			ms, err := NewConfiguredMetaSource(string(sourceName), options)
+			ms, err := NewConfiguredMetaSource(sourceName, options)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to configure metadata source")
+				return nil, errors.Wrapf(err, "failed to configure metadata source %s", sourceName)
 			}
 
 			metaSources = append(metaSources, ms)
 		}
 
-		var (
-			sourcesLen = len(metaSources)
-			metaSource = meta.NewDummySource()
-		)
-		if sourcesLen > 1 {
-			metaSource = meta.NewCompositeSource(metaSources...)
-		} else if sourcesLen == 1 {
-			metaSource = metaSources[0]
-		}
-
+		metaSource := meta.NewCompositeSource(metaSources...)
 		r, err := repo.NewRepository(repoId, repoConfig.Name, repoConfig.Path, metaSource, logger)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create repository")
@@ -105,22 +98,24 @@ func NewConfiguredRouter(cfg *config.Config, logger *zap.Logger) (HandlerCloser,
 		}
 
 		if repoConfig.IndexPath != "" { // zero value
-			r, err = repo.NewIndexedRepository(r, repoConfig.IndexPath, logger)
+			r, err = index.NewRepository(r, repoConfig.IndexPath, logger)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create indexed repository")
 			}
 		}
 
 		if repoConfig.Capable(config.CapabilityWatch) {
-			r, err = repo.NewWatchedRepository(r, logger)
+			r, err = watch.NewRepository(r, logger)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create watched repository")
 			}
 		}
 
-		if err := r.Scan(); err != nil {
-			return nil, errors.Wrap(err, "failed to scan repository")
-		}
+		go func() {
+			if err := r.Scan(); err != nil {
+				logger.Error("failed to scan repository", zap.String("repo", repoId), zap.Error(err))
+			}
+		}()
 
 		repos[repoId] = r
 	}

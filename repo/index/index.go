@@ -1,8 +1,9 @@
-package repo
+package index
 
 import (
 	"encoding/json"
 	"github.com/katana-project/katana/internal/errors"
+	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media"
 	"go.uber.org/zap"
 	"io/fs"
@@ -12,9 +13,9 @@ import (
 	"time"
 )
 
-// indexedRepository is a wrapping Repository with a CapabilityIndex capability.
+// indexedRepository is a wrapping repo.Repository with a repo.CapabilityIndex capability.
 type indexedRepository struct {
-	Repository
+	repo.Repository
 
 	path       string
 	oldPath    string
@@ -29,8 +30,8 @@ type index struct {
 	Items []*media.BasicMedia `json:"items"`
 }
 
-// NewIndexedRepository creates a file-based indexing repository.
-func NewIndexedRepository(repo Repository, path string, logger *zap.Logger) (Repository, error) {
+// NewRepository creates a file-based indexing repository.
+func NewRepository(repo repo.Repository, path string, logger *zap.Logger) (repo.Repository, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -52,8 +53,8 @@ func NewIndexedRepository(repo Repository, path string, logger *zap.Logger) (Rep
 	return ir, nil
 }
 
-func (ir *indexedRepository) Capabilities() Capability {
-	return ir.Repository.Capabilities() | CapabilityIndex
+func (ir *indexedRepository) Capabilities() repo.Capability {
+	return ir.Repository.Capabilities() | repo.CapabilityIndex
 }
 
 func (ir *indexedRepository) load() error {

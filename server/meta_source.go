@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"github.com/erni27/imcache"
+	"github.com/katana-project/katana/config"
 	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/katana/repo/media/meta/tmdb"
@@ -31,7 +32,7 @@ type tmdbSourceOptions struct {
 }
 
 // NewConfiguredMetaSource creates a metadata source from configuration.
-func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.Source, error) {
+func NewConfiguredMetaSource(name config.MetadataSource, options map[string]interface{}) (meta.Source, error) {
 	switch name {
 	case "literal":
 		return meta.NewLiteralSource(), nil
@@ -81,7 +82,7 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 				)
 			}
 
-			ms, err := NewConfiguredMetaSource(sourceName, sourceOptions)
+			ms, err := NewConfiguredMetaSource(config.MetadataSource(sourceName), sourceOptions)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to configure metadata sub-source %s", sourceName)
 			}
@@ -89,17 +90,7 @@ func NewConfiguredMetaSource(name string, options map[string]interface{}) (meta.
 			metaSources = append(metaSources, ms)
 		}
 
-		var (
-			sourcesLen = len(metaSources)
-			metaSource = meta.NewDummySource()
-		)
-		if sourcesLen > 1 {
-			metaSource = meta.NewCompositeSource(metaSources...)
-		} else if sourcesLen == 1 {
-			metaSource = metaSources[0]
-		}
-
-		return meta.NewFileAnalysisSource(metaSource), nil
+		return meta.NewFileAnalysisSource(meta.NewCompositeSource(metaSources...)), nil
 	}
 
 	return nil, fmt.Errorf("unknown metadata source %s", name)

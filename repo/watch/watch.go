@@ -1,8 +1,9 @@
-package repo
+package watch
 
 import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/katana-project/katana/internal/errors"
+	"github.com/katana-project/katana/repo"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 	"io/fs"
@@ -14,16 +15,16 @@ import (
 	"time"
 )
 
-// watchedRepository is a wrapping Repository with a CapabilityWatch capability.
+// watchedRepository is a wrapping repo.Repository with a repo.CapabilityWatch capability.
 type watchedRepository struct {
-	Repository
+	repo.Repository
 
 	logger  *zap.Logger
 	watcher *fsnotify.Watcher
 }
 
-// NewWatchedRepository creates a repository with a filesystem watcher.
-func NewWatchedRepository(repo Repository, logger *zap.Logger) (Repository, error) {
+// NewRepository creates a repository with a filesystem watcher.
+func NewRepository(repo repo.Repository, logger *zap.Logger) (repo.Repository, error) {
 	if wr, ok := repo.(*watchedRepository); ok {
 		return wr, nil
 	}
@@ -63,8 +64,8 @@ func NewWatchedRepository(repo Repository, logger *zap.Logger) (Repository, erro
 	return wr, nil
 }
 
-func (wr *watchedRepository) Capabilities() Capability {
-	return wr.Repository.Capabilities() | CapabilityWatch
+func (wr *watchedRepository) Capabilities() repo.Capability {
+	return wr.Repository.Capabilities() | repo.CapabilityWatch
 }
 
 func (wr *watchedRepository) handleFsEvents() {

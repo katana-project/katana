@@ -105,6 +105,13 @@ type compositeSource struct {
 
 // NewCompositeSource creates a metadata source that resolves results from multiple sources.
 func NewCompositeSource(metaSources ...Source) Source {
+	switch len(metaSources) { // don't wrap into a composite
+	case 0:
+		return dummySource0
+	case 1:
+		return metaSources[0]
+	}
+
 	return &compositeSource{sources: metaSources}
 }
 
