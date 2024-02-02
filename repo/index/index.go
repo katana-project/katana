@@ -13,9 +13,9 @@ import (
 	"time"
 )
 
-// indexedRepository is a wrapping repo.Repository with a repo.CapabilityIndex capability.
+// indexedRepository is a wrapping repo.MutableRepository with a repo.CapabilityIndex capability.
 type indexedRepository struct {
-	repo.Repository
+	repo.MutableRepository
 
 	path       string
 	oldPath    string
@@ -31,7 +31,7 @@ type index struct {
 }
 
 // NewRepository creates a file-based indexing repository.
-func NewRepository(repo repo.Repository, path string, logger *zap.Logger) (repo.Repository, error) {
+func NewRepository(repo repo.MutableRepository, path string, logger *zap.Logger) (repo.MutableRepository, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -40,11 +40,11 @@ func NewRepository(repo repo.Repository, path string, logger *zap.Logger) (repo.
 	dirPath := filepath.Dir(absPath)
 	fileName := filepath.Base(absPath)
 	ir := &indexedRepository{
-		Repository: repo,
-		path:       absPath,
-		oldPath:    filepath.Join(dirPath, fileName+".old"),
-		parentPath: dirPath,
-		logger:     logger,
+		MutableRepository: repo,
+		path:              absPath,
+		oldPath:           filepath.Join(dirPath, fileName+".old"),
+		parentPath:        dirPath,
+		logger:            logger,
 	}
 	if err := ir.load(); err != nil {
 		return ir, err
@@ -54,7 +54,7 @@ func NewRepository(repo repo.Repository, path string, logger *zap.Logger) (repo.
 }
 
 func (ir *indexedRepository) Capabilities() repo.Capability {
-	return ir.Repository.Capabilities() | repo.CapabilityIndex
+	return ir.MutableRepository.Capabilities() | repo.CapabilityIndex
 }
 
 func (ir *indexedRepository) load() error {
@@ -63,8 +63,8 @@ func (ir *indexedRepository) load() error {
 		defer func() {
 			ir.logger.Info(
 				"finished index load",
-				zap.String("repo", ir.Repository.ID()),
-				zap.String("repo_path", ir.Repository.Path()),
+				zap.String("repo", ir.MutableRepository.ID()),
+				zap.String("repo_path", ir.MutableRepository.Path()),
 				zap.String("path", ir.path),
 				zap.Int64("elapsed_ms", time.Since(loadTime).Milliseconds()),
 			)
@@ -85,14 +85,14 @@ func (ir *indexedRepository) load() error {
 		return errors.Wrap(err, "failed to unmarshal index")
 	}
 
-	repoPath := ir.Repository.Path()
+	repoPath := ir.MutableRepository.Path()
 	for _, item := range ix.Items {
 		absItemPath := filepath.Join(repoPath, item.Path())
 		if _, err := os.Stat(absItemPath); errors.Is(err, fs.ErrNotExist) {
 			ir.logger.Warn(
 				"non-existent index item, skipping",
-				zap.String("repo", ir.Repository.ID()),
-				zap.String("repo_path", ir.Repository.Path()),
+				zap.String("repo", ir.MutableRepository.ID()),
+				zap.String("repo_path", ir.MutableRepository.Path()),
 				zap.String("index_path", ir.path),
 				zap.String("path", absItemPath),
 			)
@@ -101,7 +101,7 @@ func (ir *indexedRepository) load() error {
 
 		// un-hack the Media contract for code reuse - you're not supposed to have relative paths in there
 		absItem := media.NewBasicMedia(media.NewMedia(item.ID(), absItemPath, item.Meta(), item.Format()))
-		if err := ir.Repository.Add(absItem); err != nil {
+		if err := ir.MutableRepository.Add(absItem); err != nil {
 			return errors.Wrap(err, "failed to add index item to repository")
 		}
 	}
@@ -115,8 +115,8 @@ func (ir *indexedRepository) save() error {
 		defer func() {
 			ir.logger.Info(
 				"finished index save",
-				zap.String("repo", ir.Repository.ID()),
-				zap.String("repo_path", ir.Repository.Path()),
+				zap.String("repo", ir.MutableRepository.ID()),
+				zap.String("repo_path", ir.MutableRepository.Path()),
 				zap.String("path", ir.path),
 				zap.Int64("elapsed_ms", time.Since(saveTime).Milliseconds()),
 			)
@@ -124,8 +124,8 @@ func (ir *indexedRepository) save() error {
 	}
 
 	var (
-		path  = ir.Repository.Path()
-		items = ir.Repository.Items()
+		path  = ir.MutableRepository.Path()
+		items = ir.MutableRepository.Items()
 		ix    = &index{Items: make([]*media.BasicMedia, len(items))}
 	)
 	for i, item := range items {
@@ -164,8 +164,8 @@ func (ir *indexedRepository) copy() error {
 		defer func() {
 			ir.logger.Info(
 				"finished index copy",
-				zap.String("repo", ir.Repository.ID()),
-				zap.String("repo_path", ir.Repository.Path()),
+				zap.String("repo", ir.MutableRepository.ID()),
+				zap.String("repo_path", ir.MutableRepository.Path()),
 				zap.String("path", ir.path),
 				zap.Int64("elapsed_ms", time.Since(copyTime).Milliseconds()),
 			)
@@ -188,7 +188,7 @@ func (ir *indexedRepository) Scan() error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 
-	err := ir.Repository.Scan()
+	err := ir.MutableRepository.Scan()
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (ir *indexedRepository) Add(m media.Media) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 
-	err := ir.Repository.Add(m)
+	err := ir.MutableRepository.Add(m)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func (ir *indexedRepository) AddPath(path string) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 
-	err := ir.Repository.AddPath(path)
+	err := ir.MutableRepository.AddPath(path)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func (ir *indexedRepository) Remove(m media.Media) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 
-	if err := ir.Repository.Remove(m); err != nil {
+	if err := ir.MutableRepository.Remove(m); err != nil {
 		return err
 	}
 
@@ -235,7 +235,7 @@ func (ir *indexedRepository) RemovePath(path string) error {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 
-	if err := ir.Repository.RemovePath(path); err != nil {
+	if err := ir.MutableRepository.RemovePath(path); err != nil {
 		return err
 	}
 

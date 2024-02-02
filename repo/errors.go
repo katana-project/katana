@@ -1,6 +1,9 @@
 package repo
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrInvalidID is an error about an invalid ID, either of a repository or media.
 type ErrInvalidID struct {
@@ -68,6 +71,24 @@ func (edp *ErrDuplicatePath) Error() string {
 	return fmt.Sprintf("duplicate media path %s in repository %s", edp.Path, edp.Repo)
 }
 
+// ErrUnsupportedOperation is an error about an operation unsupported in a repository.
+type ErrUnsupportedOperation struct {
+	// Operation is the unsupported operation.
+	Operation string
+	// Repo is the repository name.
+	Repo string
+}
+
+// Error returns the string representation of the error.
+func (euo *ErrUnsupportedOperation) Error() string {
+	return fmt.Sprintf("unsupported operation %s for repository %s", euo.Operation, euo.Repo)
+}
+
+// Unwrap returns the parent error (errors.ErrUnsupported).
+func (euo *ErrUnsupportedOperation) Unwrap() error {
+	return errors.ErrUnsupported
+}
+
 // ErrUnsupportedFormat is an error about a format unsupported for de/muxing or transcoding.
 type ErrUnsupportedFormat struct {
 	// Format is the offending format name.
@@ -79,4 +100,9 @@ type ErrUnsupportedFormat struct {
 // Error returns the string representation of the error.
 func (euf *ErrUnsupportedFormat) Error() string {
 	return fmt.Sprintf("unsupported format %s for %s", euf.Format, euf.Operation)
+}
+
+// Unwrap returns the parent error (errors.ErrUnsupported).
+func (euf *ErrUnsupportedFormat) Unwrap() error {
+	return errors.ErrUnsupported
 }

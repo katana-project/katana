@@ -2,14 +2,15 @@ package mux
 
 import (
 	"crypto/md5"
+	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"github.com/katana-project/ffmpeg/avutil"
 	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/internal/sync"
 	"github.com/katana-project/katana/repo"
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/mux"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"io"
 	"io/fs"
@@ -52,12 +53,11 @@ type format struct {
 	demuxer *mux.Demuxer
 }
 
-// muxRepository is a repo.MuxingRepository implementation that uses the mux library.
-type muxRepository struct {
-	repo.Repository
+// muxRepo is a repo.MuxingRepository implementation that uses the mux library.
+type muxRepo struct {
+	repo.MutableRepository
 
-	path                     string
-	remuxPath, transcodePath string
+	path, remuxPath, transcodePath string
 
 	cap    repo.Capability
 	logger *zap.Logger
@@ -80,11 +80,11 @@ func (rm *relocatedMedia) MIME() string {
 	return rm.mime
 }
 
-// NewRepository creates a new mux-backed repo.MuxingRepository.
-func NewRepository(r repo.Repository, cap repo.Capability, path string, logger *zap.Logger) (repo.MuxingRepository, error) {
+// NewRepository creates a new mux-backed repo.MutableRepository.
+func NewRepository(r repo.MutableRepository, cap repo.Capability, path string, logger *zap.Logger) (repo.MutableRepository, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to make path absolute")
 	}
 
 	if err := os.MkdirAll(absPath, 0); err != nil {
@@ -112,66 +112,56 @@ func NewRepository(r repo.Repository, cap repo.Capability, path string, logger *
 		}
 	}
 
-	return &muxRepository{
-		Repository:    r,
-		path:          absPath,
-		remuxPath:     remuxPath,
-		transcodePath: transcodePath,
-		cap:           cap & capMask,
-		logger:        logger,
+	return &muxRepo{
+		MutableRepository: r,
+		path:              absPath,
+		remuxPath:         remuxPath,
+		transcodePath:     transcodePath,
+		cap:               cap & capMask,
+		logger:            logger,
 	}, nil
 }
 
-func (mr *muxRepository) Capabilities() repo.Capability {
-	return mr.Repository.Capabilities() | mr.cap
+func (mr *muxRepo) Capabilities() repo.Capability {
+	return mr.MutableRepository.Capabilities() | mr.cap
 }
 
-func (mr *muxRepository) Scan() error {
-	err := mr.Repository.Scan()
-	if err != nil {
+func (mr *muxRepo) Scan() error {
+	if err := mr.MutableRepository.Scan(); err != nil {
 		return err
 	}
 
 	var (
-		items  = mr.Repository.Items() // snapshot repo items
+		items  = mr.MutableRepository.Items() // snapshot repo items
 		hashes = make(map[string]struct{}, len(items))
 	)
 	for _, item := range items {
-		hash, err := mr.makeHash(item.Path())
+		hash, err := makeHash(item.Path())
 		if err != nil {
-			return errors.Wrap(err, "failed to make item checksum")
+			return errors.Wrap(err, "failed to make hash")
 		}
 
 		hashes[hash] = struct{}{}
 	}
 
-	err = filepath.WalkDir(mr.path, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			if !strings.HasPrefix(mr.remuxPath, mr.path) && !strings.HasPrefix(mr.transcodePath, mr.path) {
-				return filepath.SkipDir // skip entering - not a directory we want to touch
-			}
-
-			return nil
-		}
-
+	err := mr.walkCache(func(path string, d fs.DirEntry) error {
 		var (
-			fileName = d.Name()
-			hash     = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+			name = d.Name()
+			hash = strings.TrimSuffix(name, filepath.Ext(name))
 		)
 		if _, ok := hashes[hash]; !ok { // doesn't exist in repo, remove
 			_, err := mr.mu.Do(path, func() (interface{}, error) {
 				return nil, os.Remove(path)
 			})
-			mr.logger.Info(
-				"removed unused cache file",
-				zap.String("repo", mr.Repository.ID()),
-				zap.String("repo_path", mr.Repository.Path()),
-				zap.String("path", path),
-			)
+			if mr.logger != nil {
+				mr.logger.Info(
+					"removed unused cache file",
+					zap.String("repo", mr.MutableRepository.ID()),
+					zap.String("repo_path", mr.MutableRepository.Path()),
+					zap.String("path", path),
+				)
+			}
+
 			return err
 		}
 
@@ -184,62 +174,61 @@ func (mr *muxRepository) Scan() error {
 	return nil
 }
 
-func (mr *muxRepository) Remove(m media.Media) error {
-	err := mr.Repository.Remove(m)
+func (mr *muxRepo) Remove(m media.Media) error {
+	hash, err := makeHash(m.Path())
 	if err != nil {
+		return errors.Wrap(err, "failed to make hash")
+	}
+
+	if err := mr.MutableRepository.Remove(m); err != nil {
 		return err
 	}
 
-	return mr.remove(m.Path())
+	return mr.remove(hash)
 }
 
-func (mr *muxRepository) RemovePath(path string) error {
-	err := mr.Repository.RemovePath(path)
+func (mr *muxRepo) RemovePath(path string) error {
+	hash, err := makeHash(path)
 	if err != nil {
+		return errors.Wrap(err, "failed to make hash")
+	}
+
+	if err := mr.MutableRepository.RemovePath(path); err != nil {
 		return err
 	}
 
-	return mr.remove(path)
+	return mr.remove(hash)
 }
 
-func (mr *muxRepository) makeHash(path string) (string, error) {
-	relPath, err := filepath.Rel(mr.Repository.Path(), path)
+func makeHash(path string) (_ string, err error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to make path relative")
+		return "", errors.Wrap(err, "failed to open file")
 	}
+	defer func() {
+		if err0 := f.Close(); err0 != nil {
+			err = multierr.Append(err, errors.Wrap(err0, "failed to close file"))
+		}
+	}()
 
-	fi, err := os.Stat(path)
+	fi, err := f.Stat()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to stat file")
 	}
 
-	// fast hash using the relative path and file length
-	sum := md5.Sum([]byte(fmt.Sprintf("%s,%d", relPath, fi.Size())))
-	return hex.EncodeToString(sum[:]), nil
-}
-
-// remove cleans all remuxed and transcoded variants of the supplied media path.
-func (mr *muxRepository) remove(path string) error {
-	hash, err := mr.makeHash(path)
-	if err != nil {
-		return errors.Wrap(err, "failed to make checksum")
+	h := md5.New()
+	if _, err = io.Copy(h, io.LimitReader(f, 1024*1024)); err != nil {
+		return "", errors.Wrap(err, "failed to read file")
 	}
 
-	err = filepath.WalkDir(mr.path, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	_ = binary.Write(h, binary.LittleEndian, fi.Size())
+	return hex.EncodeToString(h.Sum(nil)), err
+}
 
-		if d.IsDir() {
-			if !strings.HasPrefix(mr.remuxPath, mr.path) && !strings.HasPrefix(mr.transcodePath, mr.path) {
-				return filepath.SkipDir // skip entering - not a directory we want to touch
-			}
-
-			return nil
-		}
-
-		fileName := d.Name()
-		if strings.TrimSuffix(fileName, filepath.Ext(fileName)) == hash {
+func (mr *muxRepo) remove(hash string) error {
+	err := mr.walkCache(func(path string, d fs.DirEntry) error {
+		name := d.Name()
+		if strings.TrimSuffix(name, filepath.Ext(name)) == hash {
 			_, err := mr.mu.Do(path, func() (interface{}, error) {
 				return nil, os.Remove(path)
 			})
@@ -255,8 +244,30 @@ func (mr *muxRepository) remove(path string) error {
 	return nil
 }
 
-func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, error) {
-	m := mr.Repository.Get(id)
+type walkFunc func(path string, d fs.DirEntry) error
+
+func (mr *muxRepo) walkCache(fn walkFunc) error {
+	if err := walkFiles(mr.remuxPath, fn); err != nil {
+		return err
+	}
+	if err := walkFiles(mr.transcodePath, fn); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func walkFiles(path string, fn walkFunc) error {
+	return filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			err = fn(path, d)
+		}
+		return err
+	})
+}
+
+func (mr *muxRepo) Remux(id string, format *media.Format) (media.Media, error) {
+	m := mr.MutableRepository.Get(id)
 	if m == nil {
 		return nil, nil
 	}
@@ -268,9 +279,10 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 	}
 
 	path := m.Path()
-	hash, err := mr.makeHash(path)
+
+	hash, err := makeHash(path)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to make checksum")
+		return nil, errors.Wrap(err, "failed to make hash")
 	}
 
 	remuxedPath := filepath.Join(mr.remuxPath, hash+"."+format.Extension)
@@ -305,7 +317,7 @@ func (mr *muxRepository) Remux(id string, format *media.Format) (media.Media, er
 	return res.(media.Media), nil
 }
 
-func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
+func (mr *muxRepo) remux(muxer *mux.Muxer, src, dst string) (err error) {
 	inCtx, err := mux.NewInputContext(src)
 	if err != nil {
 		return errors.Wrap(err, "failed to open input context")
@@ -337,7 +349,7 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 
 			remapId = lastStreamIndex
 			lastStreamIndex++
-		} else { // codec not supported in container, strip
+		} else if mr.logger != nil { // codec not supported in container, strip
 			mr.logger.Warn(
 				"skipping unsupported codec in stream",
 				zap.String("codec", codec.Name()),
@@ -401,6 +413,6 @@ func (mr *muxRepository) remux(muxer *mux.Muxer, src, dst string) (err error) {
 	return err
 }
 
-func (mr *muxRepository) Mux() repo.MuxingRepository {
+func (mr *muxRepo) Mutable() repo.MutableRepository {
 	return mr
 }

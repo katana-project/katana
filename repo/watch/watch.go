@@ -4,6 +4,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/katana-project/katana/internal/errors"
 	"github.com/katana-project/katana/repo"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 	"io/fs"
@@ -15,17 +16,17 @@ import (
 	"time"
 )
 
-// watchedRepository is a wrapping repo.Repository with a repo.CapabilityWatch capability.
-type watchedRepository struct {
-	repo.Repository
+// watchRepo is a wrapping repo.MutableRepository with a repo.CapabilityWatch capability.
+type watchRepo struct {
+	repo.MutableRepository
 
 	logger  *zap.Logger
 	watcher *fsnotify.Watcher
 }
 
 // NewRepository creates a repository with a filesystem watcher.
-func NewRepository(repo repo.Repository, logger *zap.Logger) (repo.Repository, error) {
-	if wr, ok := repo.(*watchedRepository); ok {
+func NewRepository(repo repo.MutableRepository, logger *zap.Logger) (repo.MutableRepository, error) {
+	if wr, ok := repo.(*watchRepo); ok {
 		return wr, nil
 	}
 
@@ -54,21 +55,21 @@ func NewRepository(repo repo.Repository, logger *zap.Logger) (repo.Repository, e
 		return nil, errors.Wrap(err, "failed to walk repository files")
 	}
 
-	wr := &watchedRepository{
-		Repository: repo,
-		logger:     logger,
-		watcher:    watcher,
+	wr := &watchRepo{
+		MutableRepository: repo,
+		logger:            logger,
+		watcher:           watcher,
 	}
 
 	go wr.handleFsEvents()
 	return wr, nil
 }
 
-func (wr *watchedRepository) Capabilities() repo.Capability {
-	return wr.Repository.Capabilities() | repo.CapabilityWatch
+func (wr *watchRepo) Capabilities() repo.Capability {
+	return wr.MutableRepository.Capabilities() | repo.CapabilityWatch
 }
 
-func (wr *watchedRepository) handleFsEvents() {
+func (wr *watchRepo) handleFsEvents() {
 	var (
 		waitFor = 100 * time.Millisecond
 		timers  = make(map[string]*time.Timer)
@@ -137,7 +138,7 @@ func (wr *watchedRepository) handleFsEvents() {
 	}
 }
 
-func (wr *watchedRepository) handleFsEvent(event fsnotify.Event) error {
+func (wr *watchRepo) handleFsEvent(event fsnotify.Event) error {
 	// event.Name is always absolute, since path supplied to watcher is absolute
 
 	fileName := filepath.Base(event.Name)
@@ -192,10 +193,10 @@ func (wr *watchedRepository) handleFsEvent(event fsnotify.Event) error {
 	return nil
 }
 
-func (wr *watchedRepository) Close() error {
-	if err := wr.watcher.Close(); err != nil {
-		return err
-	}
+func (wr *watchRepo) Close() (err error) {
+	return multierr.Combine(wr.watcher.Close(), wr.MutableRepository.Close())
+}
 
-	return wr.Repository.Close()
+func (wr *watchRepo) Mutable() repo.MutableRepository {
+	return wr
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/katana-project/katana/repo/media"
 	"github.com/katana-project/katana/repo/media/meta"
 	"github.com/katana-project/katana/server/api/v1"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/text/language"
 	"net/http"
@@ -132,7 +133,7 @@ func (s *Server) GetRepoMediaStream(_ context.Context, request v1.GetRepoMediaSt
 		}
 
 		var err error
-		m, err = rp.Mux().Remux(request.MediaId, format)
+		m, err = rp.Remux(request.MediaId, format)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to remux media")
 		}
@@ -150,12 +151,16 @@ type streamResp struct {
 	path, mime string
 }
 
-func (sr *streamResp) writeResponse(disp string, w http.ResponseWriter, r *http.Request) error {
+func (sr *streamResp) writeResponse(disp string, w http.ResponseWriter, r *http.Request) (err error) {
 	f, err := os.Open(sr.path)
 	if err != nil {
 		return errors.Wrap(err, "failed to open media")
 	}
-	defer f.Close()
+	defer func() {
+		if err0 := f.Close(); err0 != nil {
+			err = multierr.Append(err, errors.Wrap(err0, "failed to close file"))
+		}
+	}()
 
 	fi, err := f.Stat()
 	if err != nil {
@@ -166,7 +171,7 @@ func (sr *streamResp) writeResponse(disp string, w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Disposition", disp)
 
 	http.ServeContent(w, r, fi.Name(), fi.ModTime(), f)
-	return nil
+	return err
 }
 
 func (sr *streamResp) VisitGetRepoMediaStreamResponse(w http.ResponseWriter, r *http.Request) error {
